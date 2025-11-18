@@ -16,7 +16,20 @@ const DEFAULT_CONFIG = {
   provider: null,
   model: null,
   apiKey: null,
-  commitConvention: 'conventional',
+  commitConvention: {
+    type: 'conventional',
+    format: null
+  },
+  branchNaming: {
+    type: 'gitflow',
+    format: null
+  },
+  followProjectPatterns: {
+    enabled: true,
+    analyzeDepth: 25,
+    analyzeBranches: true,
+    analyzeCommits: true
+  },
   codeReviewStyle: 'detailed',
   prMessageStyle: 'detailed',
   customInstructions: ''
