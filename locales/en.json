@@ -88,6 +88,39 @@
     },
     "selectModel": "Select a model (optional):",
     "modelDefault": "Use default model",
+    "selectCommitConvention": "Choose your commit message convention:",
+    "commitConventions": {
+      "conventional": "Conventional Commits",
+      "conventionalDesc": "feat:, fix:, docs: - Standard semantic commits",
+      "gitmoji": "Gitmoji",
+      "gitmojiDesc": "✨ 🐛 📝 - Commits with emojis",
+      "simple": "Simple",
+      "simpleDesc": "Short, descriptive messages without prefixes",
+      "custom": "Custom",
+      "customDesc": "Define your own commit style"
+    },
+    "selectCodeReviewStyle": "How detailed should code reviews be?",
+    "codeReviewStyles": {
+      "detailed": "Detailed",
+      "detailedDesc": "In-depth analysis with suggestions and examples",
+      "concise": "Concise",
+      "conciseDesc": "Brief, focused feedback on key issues",
+      "security": "Security-focused",
+      "securityDesc": "Emphasis on security vulnerabilities and best practices"
+    },
+    "selectPRStyle": "Choose your pull request message style:",
+    "prStyles": {
+      "detailed": "Detailed",
+      "detailedDesc": "Comprehensive description with context and test plan",
+      "concise": "Concise",
+      "conciseDesc": "Brief summary of changes",
+      "technical": "Technical",
+      "technicalDesc": "Technical details for experienced developers"
+    },
+    "wantsCustomInstructions": "Would you like to add custom instructions?",
+    "customInstructionsHelp": "Examples: 'Always include emojis', 'Keep messages under 50 chars', 'Focus on performance'",
+    "enterCustomInstructions": "Enter your custom instructions:",
+    "customInstructionsTooLong": "Instructions too long (max 500 characters)",
     "testConnection": "Test connection",
     "skipTest": "Skip and save",
     "testSetup": "Test setup",
@@ -97,6 +130,7 @@
     "retrySetup": "Would you like to try again?",
     "setupComplete": "Setup completed successfully!",
     "setupFailed": "Setup failed. Please try again.",
+    "setupCancelled": "Setup cancelled.",
     "configSaved": "Configuration saved to: {path}",
     "readyToGo": "You're all set! Starting coParrot..."
   },
