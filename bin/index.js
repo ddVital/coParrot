@@ -2,6 +2,7 @@
 
 import CLI from '../src/lib/cli.js';
 import gitRepository from '../src/services/git.js'
+import LLMOrchestrator from '../src/services/llms.js'
 import { program } from 'commander';
 import chalk from 'chalk';
 import { loadConfig, setupConfig } from '../src/services/config.js'
@@ -17,6 +18,7 @@ program
   .parse(process.argv);
 
 const options = program.opts();
+const config = loadConfig();
 
 /**
  * Example: Custom command handler
@@ -24,6 +26,19 @@ const options = program.opts();
 async function handleCommand(cmd, args, cli) {
   const repo = new gitRepository();
   const status = repo.getDetailedStatus();
+
+  // Initialize LLM provider
+  const provider = new LLMOrchestrator({
+    provider: config.provider,
+    apiKey: config.apiKey,
+    model: config.model,
+    instructions: {
+      'commit': config.commitConvention,
+      'review': config.codeReviewStyle,
+      'pr': config.prMessageStyle,
+      'custom': config.customInstructions
+    }
+  });
 
   switch (cmd) {
     case 'test':
@@ -45,6 +60,12 @@ async function handleCommand(cmd, args, cli) {
     case 'add':
       gitAdd(repo, status) 
       break;
+    case 'commit':
+      // TODO: noticed that when I run the first time setup and try to run this it apparently is not being able to get the provider (toLowerCase() error)
+      const context = repo.diff([], {staged: true});
+      // provider.generateCommitMessage(context);
+      provider.generateCommitMessage(context, 'commit');
+      // gitCommit(repo, status, provider)
     default:
       cli.streamer.showError(`Unknown command: /${cmd}`);
       cli.streamer.showInfo('Available custom commands: /test, /demo');
@@ -55,8 +76,6 @@ async function handleCommand(cmd, args, cli) {
  * Start the CLI
  */
 async function main() {
-  const config = loadConfig();
-
   // Initialize i18n with the configured language
   // loadConfig already initializes i18n, but this ensures it's always called
   const language = config.language || 'en';
@@ -78,9 +97,9 @@ async function main() {
     const isSetupFinished = await setupConfig();
 
     if (isSetupFinished) cli.start();
-  } else {
-    await cli.start();
   }
+
+  await cli.start();
 }
 
 // Run the application
