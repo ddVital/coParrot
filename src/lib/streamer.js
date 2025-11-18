@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import { createHeader } from '../utils/header.js';
+import i18n from '../services/i18n.js';
 
 /**
  * Handles streaming output with elegant formatting
@@ -41,13 +42,14 @@ class StreamingOutput {
   /**
    * Show a thinking indicator
    */
-  startThinking(message = 'Thinking...') {
+  startThinking(message = null) {
     if (this.currentSpinner) {
       this.currentSpinner.stop();
     }
 
+    const defaultMessage = message || i18n.t('cli.thinking');
     this.currentSpinner = ora({
-      text: chalk.dim(message),
+      text: chalk.dim(defaultMessage),
       color: 'cyan',
       spinner: 'dots'
     }).start();
@@ -79,7 +81,7 @@ class StreamingOutput {
     this.stopThinking();
     process.stdout.write(this.renderer.renderToolUse(toolName, description));
 
-    this.startThinking(`Running ${toolName}...`);
+    this.startThinking(i18n.t('output.running', { toolName }));
   }
 
   /**
@@ -95,7 +97,7 @@ class StreamingOutput {
    */
   showError(error) {
     this.stopThinking();
-    console.error('\n' + chalk.red.bold('Error: ') + chalk.red(error.message || error));
+    console.error('\n' + chalk.red.bold(i18n.t('output.prefixes.error') + ' ') + chalk.red(error.message || error));
     console.error(chalk.gray('─'.repeat(process.stdout.columns || 80)));
   }
 
@@ -104,7 +106,7 @@ class StreamingOutput {
    */
   showSuccess(message) {
     this.stopThinking();
-    console.log('\n' + chalk.green('✓ ') + chalk.white(message));
+    console.log('\n' + chalk.green(i18n.t('output.prefixes.success') + ' ') + chalk.white(message));
   }
 
   /**
@@ -112,7 +114,7 @@ class StreamingOutput {
    */
   showInfo(message) {
     this.stopThinking();
-    console.log('\n' + chalk.cyan('ℹ ') + chalk.white(message));
+    console.log('\n' + chalk.cyan(i18n.t('output.prefixes.info') + ' ') + chalk.white(message));
   }
 
   showGitInfo(context) {
@@ -127,7 +129,7 @@ class StreamingOutput {
    */
   showWarning(message) {
     this.stopThinking();
-    console.log('\n' + chalk.yellow('⚠ ') + chalk.white(message));
+    console.log('\n' + chalk.yellow(i18n.t('output.prefixes.warning') + ' ') + chalk.white(message));
   }
 
   /**
@@ -157,16 +159,16 @@ class StreamingOutput {
     console.log(header);
 
     // Display version and tagline
-    console.log(chalk.dim(`  v${version}`) + chalk.cyan('  •  ') + chalk.dim('Your Git Assistant'));
+    console.log(chalk.dim(`  ${i18n.t('app.version', { version })}`) + chalk.cyan('  •  ') + chalk.dim(i18n.t('app.tagline')));
     console.log();
 
     // Show helpful info for first-time users
     if (!config.provider) {
-      console.log(chalk.yellow('  ⚡ First time? Run setup to get started!'));
+      console.log(chalk.yellow('  ⚡ ' + i18n.t('app.welcome.firstTime')));
       console.log();
     }
 
-    console.log(chalk.dim('  Type your message or use /help for commands'));
+    console.log(chalk.dim('  ' + i18n.t('app.welcome.typeMessage')));
     console.log();
     this.showSeparator();
   }
