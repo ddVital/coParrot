@@ -1,0 +1,135 @@
+{
+  "app": {
+    "name": "coParrot",
+    "version": "v{version}",
+    "tagline": "Your Git Assistant",
+    "welcome": {
+      "firstTime": "First time? Run setup to get started!",
+      "typeMessage": "Type your message or use /help for commands"
+    },
+    "goodbye": "Goodbye!"
+  },
+  "cli": {
+    "prompt": "> ",
+    "thinking": "Thinking...",
+    "commands": {
+      "help": "help",
+      "clear": "clear",
+      "history": "history",
+      "exit": "exit",
+      "quit": "quit"
+    },
+    "commandDescriptions": {
+      "help": "Show available commands",
+      "clear": "Clear the screen",
+      "history": "Show conversation history",
+      "exit": "Exit the application",
+      "quit": "Exit the application"
+    },
+    "messages": {
+      "availableCommands": "Available Commands",
+      "customCommands": "Custom Commands",
+      "unknownCommand": "Unknown command: /{cmd}",
+      "helpHint": "Type /help for available commands",
+      "renderError": "Prompt couldn't be rendered in the current environment"
+    },
+    "history": {
+      "title": "Conversation History",
+      "empty": "No messages yet",
+      "you": "You",
+      "assistant": "Assistant"
+    }
+  },
+  "git": {
+    "add": {
+      "selectFiles": "Choose files to stage for commit (Space to select, Enter to confirm)",
+      "noFilesSelected": "No files were staged. Your working directory remains unchanged.",
+      "noFilesAvailable": "No files available to stage",
+      "successStaged": "Successfully staged {count} {files}",
+      "nextStep": "**Next step:** Run `/commit` to create your commit, or continue staging more files.",
+      "files": {
+        "singular": "file",
+        "plural": "files"
+      }
+    },
+    "errors": {
+      "notARepository": "Not a git repository: {path}",
+      "commandFailed": "Git command failed: {message}"
+    },
+    "status": {
+      "modified": "Modified",
+      "added": "Added",
+      "deleted": "Deleted",
+      "renamed": "Renamed",
+      "copied": "Copied",
+      "untracked": "Untracked",
+      "unmerged": "Unmerged"
+    }
+  },
+  "setup": {
+    "welcome": "Welcome to coParrot!",
+    "intro": "Let's get you set up. This will only take a minute.",
+    "selectLanguage": "Choose your preferred language:",
+    "selectProvider": "Select an LLM provider:",
+    "providers": {
+      "openai": "OpenAI",
+      "openaiDesc": "GPT-4, GPT-3.5 - Versatile and powerful",
+      "claude": "Claude",
+      "claudeDesc": "Anthropic's Claude - Great for reasoning",
+      "gemini": "Gemini",
+      "geminiDesc": "Google's Gemini - Fast and efficient"
+    },
+    "enterApiKey": "Enter your {provider} API key:",
+    "apiKeyHelp": "Get your API key from: {url}",
+    "apiKeyHelpUrls": {
+      "openai": "https://platform.openai.com/api-keys",
+      "claude": "https://console.anthropic.com/settings/keys",
+      "gemini": "https://makersuite.google.com/app/apikey"
+    },
+    "selectModel": "Select a model (optional):",
+    "modelDefault": "Use default model",
+    "testConnection": "Test connection",
+    "skipTest": "Skip and save",
+    "testSetup": "Test setup",
+    "testing": "Testing connection to {provider}...",
+    "testSuccess": "Connection successful! Your setup is working.",
+    "testFailed": "Connection failed: {error}",
+    "retrySetup": "Would you like to try again?",
+    "setupComplete": "Setup completed successfully!",
+    "setupFailed": "Setup failed. Please try again.",
+    "configSaved": "Configuration saved to: {path}",
+    "readyToGo": "You're all set! Starting coParrot..."
+  },
+  "config": {
+    "errors": {
+      "readError": "Error reading config file: {error}",
+      "saveError": "Error saving config file: {error}"
+    },
+    "messages": {
+      "saved": "Configuration saved: {config}",
+      "loaded": "Configuration loaded successfully"
+    }
+  },
+  "output": {
+    "prefixes": {
+      "success": "✓",
+      "error": "Error:",
+      "info": "ℹ",
+      "warning": "⚠"
+    },
+    "running": "Running {toolName}..."
+  },
+  "common": {
+    "yes": "Yes",
+    "no": "No",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "loading": "Loading...",
+    "done": "Done",
+    "failed": "Failed",
+    "success": "Success"
+  }
+}
