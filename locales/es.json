@@ -1,0 +1,135 @@
+{
+  "app": {
+    "name": "coParrot",
+    "version": "v{version}",
+    "tagline": "Tu Asistente Git",
+    "welcome": {
+      "firstTime": "¿Primera vez? ¡Ejecuta setup para comenzar!",
+      "typeMessage": "Escribe tu mensaje o usa /help para comandos"
+    },
+    "goodbye": "¡Adiós!"
+  },
+  "cli": {
+    "prompt": "> ",
+    "thinking": "Pensando...",
+    "commands": {
+      "help": "ayuda",
+      "clear": "limpiar",
+      "history": "historial",
+      "exit": "salir",
+      "quit": "salir"
+    },
+    "commandDescriptions": {
+      "help": "Mostrar comandos disponibles",
+      "clear": "Limpiar la pantalla",
+      "history": "Mostrar historial de conversación",
+      "exit": "Salir de la aplicación",
+      "quit": "Salir de la aplicación"
+    },
+    "messages": {
+      "availableCommands": "Comandos Disponibles",
+      "customCommands": "Comandos Personalizados",
+      "unknownCommand": "Comando desconocido: /{cmd}",
+      "helpHint": "Escribe /help para comandos disponibles",
+      "renderError": "El prompt no pudo ser renderizado en el entorno actual"
+    },
+    "history": {
+      "title": "Historial de Conversación",
+      "empty": "No hay mensajes todavía",
+      "you": "Tú",
+      "assistant": "Asistente"
+    }
+  },
+  "git": {
+    "add": {
+      "selectFiles": "Elige archivos para preparar para commit (Espacio para seleccionar, Enter para confirmar)",
+      "noFilesSelected": "No se prepararon archivos. Tu directorio de trabajo permanece sin cambios.",
+      "noFilesAvailable": "No hay archivos disponibles para preparar",
+      "successStaged": "{count} {files} preparado(s) exitosamente",
+      "nextStep": "**Siguiente paso:** Ejecuta `/commit` para crear tu commit, o continúa preparando más archivos.",
+      "files": {
+        "singular": "archivo",
+        "plural": "archivos"
+      }
+    },
+    "errors": {
+      "notARepository": "No es un repositorio git: {path}",
+      "commandFailed": "El comando git falló: {message}"
+    },
+    "status": {
+      "modified": "Modificado",
+      "added": "Agregado",
+      "deleted": "Eliminado",
+      "renamed": "Renombrado",
+      "copied": "Copiado",
+      "untracked": "No rastreado",
+      "unmerged": "No fusionado"
+    }
+  },
+  "setup": {
+    "welcome": "¡Bienvenido a coParrot!",
+    "intro": "Vamos a configurarlo. Solo tomará un minuto.",
+    "selectLanguage": "Elige tu idioma preferido:",
+    "selectProvider": "Selecciona un proveedor de LLM:",
+    "providers": {
+      "openai": "OpenAI",
+      "openaiDesc": "GPT-4, GPT-3.5 - Versátil y poderoso",
+      "claude": "Claude",
+      "claudeDesc": "Claude de Anthropic - Excelente para razonamiento",
+      "gemini": "Gemini",
+      "geminiDesc": "Gemini de Google - Rápido y eficiente"
+    },
+    "enterApiKey": "Ingresa tu clave API de {provider}:",
+    "apiKeyHelp": "Obtén tu clave API desde: {url}",
+    "apiKeyHelpUrls": {
+      "openai": "https://platform.openai.com/api-keys",
+      "claude": "https://console.anthropic.com/settings/keys",
+      "gemini": "https://makersuite.google.com/app/apikey"
+    },
+    "selectModel": "Selecciona un modelo (opcional):",
+    "modelDefault": "Usar modelo predeterminado",
+    "testConnection": "Probar conexión",
+    "skipTest": "Omitir y guardar",
+    "testSetup": "Probar configuración",
+    "testing": "Probando conexión con {provider}...",
+    "testSuccess": "¡Conexión exitosa! Tu configuración está funcionando.",
+    "testFailed": "Conexión fallida: {error}",
+    "retrySetup": "¿Te gustaría intentar de nuevo?",
+    "setupComplete": "¡Configuración completada exitosamente!",
+    "setupFailed": "La configuración falló. Por favor, intenta de nuevo.",
+    "configSaved": "Configuración guardada en: {path}",
+    "readyToGo": "¡Todo listo! Iniciando coParrot..."
+  },
+  "config": {
+    "errors": {
+      "readError": "Error al leer archivo de configuración: {error}",
+      "saveError": "Error al guardar archivo de configuración: {error}"
+    },
+    "messages": {
+      "saved": "Configuración guardada: {config}",
+      "loaded": "Configuración cargada exitosamente"
+    }
+  },
+  "output": {
+    "prefixes": {
+      "success": "✓",
+      "error": "Error:",
+      "info": "ℹ",
+      "warning": "⚠"
+    },
+    "running": "Ejecutando {toolName}..."
+  },
+  "common": {
+    "yes": "Sí",
+    "no": "No",
+    "cancel": "Cancelar",
+    "continue": "Continuar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "finish": "Finalizar",
+    "loading": "Cargando...",
+    "done": "Hecho",
+    "failed": "Falló",
+    "success": "Éxito"
+  }
+}
