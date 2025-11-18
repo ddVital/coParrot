@@ -63,7 +63,16 @@
       "renamed": "Renamed",
       "copied": "Copied",
       "untracked": "Untracked",
-      "unmerged": "Unmerged"
+      "staged-modified": "Staged (Modified)",
+      "staged-added": "Staged (New)",
+      "staged-deleted": "Staged (Deleted)",
+      "staged-renamed": "Staged (Renamed)",
+      "staged-copied": "Staged (Copied)",
+      "staged-and-modified": "Staged + Modified",
+      "staged-and-deleted": "Staged + Deleted",
+      "conflict": "Conflict",
+      "ignored": "Ignored",
+      "unknown": "Unknown"
     }
   },
   "setup": {
@@ -99,6 +108,38 @@
       "custom": "Custom",
       "customDesc": "Define your own commit style"
     },
+    "customCommitHelp": "Describe your commit format. Use placeholders like {type}, {scope}, {message}",
+    "enterCustomCommit": "Enter your custom commit format:",
+    "customCommitExample": "Example:\n[{type}] {message}\n\nWhere {type} can be: feature, bugfix, refactor\n{message} is the commit description",
+    "customCommitRequired": "Custom commit format cannot be empty",
+    "selectBranchNaming": "Choose your branch naming convention:",
+    "branchNaming": {
+      "gitflow": "Git Flow",
+      "gitflowDesc": "feature/, bugfix/, hotfix/, release/ - Standard git-flow",
+      "descriptive": "Descriptive",
+      "descriptiveDesc": "short-descriptive-name - Simple and readable",
+      "ticket": "Ticket-based",
+      "ticketDesc": "TICKET-123-description - Include ticket/issue number",
+      "custom": "Custom",
+      "customDesc": "Define your own branch naming pattern"
+    },
+    "customBranchHelp": "Describe your branch format. Use placeholders like {type}, {ticket}, {description}",
+    "enterCustomBranch": "Enter your custom branch format:",
+    "customBranchExample": "Example:\n{username}/{type}/{description}\n\nWhere {username} is your git username\n{type} can be: feature, fix, chore\n{description} is a short description",
+    "customBranchRequired": "Custom branch format cannot be empty",
+    "followProjectPatterns": "Follow existing project patterns for commits and branches?",
+    "followProjectPatternsHelp": "Analyze recent commits and branches to maintain consistency",
+    "selectAnalyzeDepth": "How many recent items should be analyzed?",
+    "analyzeDepth": {
+      "last10": "Last 10",
+      "last10Desc": "Quick analysis - Fast but less context",
+      "last25": "Last 25 (Recommended)",
+      "last25Desc": "Balanced - Good patterns with reasonable speed",
+      "last50": "Last 50",
+      "last50Desc": "Thorough - More context, slower",
+      "all": "All history",
+      "allDesc": "Complete analysis - Slowest, most accurate"
+    },
     "selectCodeReviewStyle": "How detailed should code reviews be?",
     "codeReviewStyles": {
       "detailed": "Detailed",
@@ -119,8 +160,10 @@
     },
     "wantsCustomInstructions": "Would you like to add custom instructions?",
     "customInstructionsHelp": "Examples: 'Always include emojis', 'Keep messages under 50 chars', 'Focus on performance'",
+    "customInstructionsEditor": "Your default editor will open for multi-line input",
     "enterCustomInstructions": "Enter your custom instructions:",
-    "customInstructionsTooLong": "Instructions too long (max 500 characters)",
+    "customInstructionsExample": "# Custom Instructions\n\n- Always include emojis in commit messages\n- Keep messages concise (under 50 characters)\n- Focus on performance improvements\n- Add context about why changes were made",
+    "customInstructionsTooLong": "Instructions too long (max 1000 characters)",
     "testConnection": "Test connection",
     "skipTest": "Skip and save",
     "testSetup": "Test setup",

@@ -63,7 +63,16 @@
       "renamed": "Renombrado",
       "copied": "Copiado",
       "untracked": "No rastreado",
-      "unmerged": "No fusionado"
+      "staged-modified": "Preparado (Modificado)",
+      "staged-added": "Preparado (Nuevo)",
+      "staged-deleted": "Preparado (Eliminado)",
+      "staged-renamed": "Preparado (Renombrado)",
+      "staged-copied": "Preparado (Copiado)",
+      "staged-and-modified": "Preparado + Modificado",
+      "staged-and-deleted": "Preparado + Eliminado",
+      "conflict": "Conflicto",
+      "ignored": "Ignorado",
+      "unknown": "Desconocido"
     }
   },
   "setup": {
@@ -99,6 +108,38 @@
       "custom": "Personalizado",
       "customDesc": "Define tu propio estilo de commit"
     },
+    "customCommitHelp": "Describe tu formato de commit. Usa marcadores como {type}, {scope}, {message}",
+    "enterCustomCommit": "Ingresa tu formato de commit personalizado:",
+    "customCommitExample": "Ejemplo:\n[{type}] {message}\n\nDonde {type} puede ser: feature, bugfix, refactor\n{message} es la descripción del commit",
+    "customCommitRequired": "El formato de commit personalizado no puede estar vacío",
+    "selectBranchNaming": "Elige tu convención de nomenclatura de ramas:",
+    "branchNaming": {
+      "gitflow": "Git Flow",
+      "gitflowDesc": "feature/, bugfix/, hotfix/, release/ - Git-flow estándar",
+      "descriptive": "Descriptivo",
+      "descriptiveDesc": "nombre-corto-descriptivo - Simple y legible",
+      "ticket": "Basado en ticket",
+      "ticketDesc": "TICKET-123-descripcion - Incluir número de ticket/issue",
+      "custom": "Personalizado",
+      "customDesc": "Define tu propio patrón de nomenclatura de ramas"
+    },
+    "customBranchHelp": "Describe tu formato de rama. Usa marcadores como {type}, {ticket}, {description}",
+    "enterCustomBranch": "Ingresa tu formato de rama personalizado:",
+    "customBranchExample": "Ejemplo:\n{username}/{type}/{description}\n\nDonde {username} es tu nombre de usuario git\n{type} puede ser: feature, fix, chore\n{description} es una descripción corta",
+    "customBranchRequired": "El formato de rama personalizado no puede estar vacío",
+    "followProjectPatterns": "¿Seguir patrones existentes del proyecto para commits y ramas?",
+    "followProjectPatternsHelp": "Analizar commits y ramas recientes para mantener consistencia",
+    "selectAnalyzeDepth": "¿Cuántos elementos recientes deben analizarse?",
+    "analyzeDepth": {
+      "last10": "Últimos 10",
+      "last10Desc": "Análisis rápido - Rápido pero menos contexto",
+      "last25": "Últimos 25 (Recomendado)",
+      "last25Desc": "Balanceado - Buenos patrones con velocidad razonable",
+      "last50": "Últimos 50",
+      "last50Desc": "Detallado - Más contexto, más lento",
+      "all": "Todo el historial",
+      "allDesc": "Análisis completo - Más lento, más preciso"
+    },
     "selectCodeReviewStyle": "¿Qué tan detalladas deben ser las revisiones de código?",
     "codeReviewStyles": {
       "detailed": "Detallado",
@@ -119,8 +160,10 @@
     },
     "wantsCustomInstructions": "¿Te gustaría agregar instrucciones personalizadas?",
     "customInstructionsHelp": "Ejemplos: 'Siempre incluir emojis', 'Mantener mensajes de menos de 50 caracteres', 'Enfocarse en rendimiento'",
+    "customInstructionsEditor": "Tu editor predeterminado se abrirá para entrada de múltiples líneas",
     "enterCustomInstructions": "Ingresa tus instrucciones personalizadas:",
-    "customInstructionsTooLong": "Instrucciones muy largas (máx. 500 caracteres)",
+    "customInstructionsExample": "# Instrucciones Personalizadas\n\n- Siempre incluir emojis en los mensajes de commit\n- Mantener mensajes concisos (menos de 50 caracteres)\n- Enfocarse en mejoras de rendimiento\n- Agregar contexto sobre por qué se hicieron los cambios",
+    "customInstructionsTooLong": "Instrucciones muy largas (máx. 1000 caracteres)",
     "testConnection": "Probar conexión",
     "skipTest": "Omitir y guardar",
     "testSetup": "Probar configuración",
