@@ -34,7 +34,7 @@ class GitRepository {
         cwd: this.repoPath,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe']
-      }).trim();
+      });
     } catch (error) {
       // Extract just the error message without stack trace
       const message = error.stderr?.trim() || error.message;
@@ -461,11 +461,13 @@ class GitRepository {
       const statusCode = line.substring(0, 2);
       const filename = statusCode.includes('??') ? line.substring(3) : line.substring(2);
 
+      const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
+
       return {
         status: this._getChangeType(statusCode),
         statusCode,
         value: filename.trim(),
-        checked: statusCode.trim().includes('A') ? true : false,
+        checked: isStaged,
         additions: stats[filename]?.additions || 0,
         deletions: stats[filename]?.deletions || 0
       };
@@ -498,22 +500,35 @@ class GitRepository {
   }
 
   /**
-   * Map git status codes to human-readable types
+   * Map git status codes to human-readable types with staging info
    * @private
    */
   _getChangeType(status) {
     const map = {
-      'M ': 'modified',
+      // Staged changes (first char is the change)
+      'M ': 'staged-modified',
+      'A ': 'staged-added',
+      'D ': 'staged-deleted',
+      'R ': 'staged-renamed',
+      'C ': 'staged-copied',
+
+      // Unstaged changes (second char is the change)
       ' M': 'modified',
-      'MM': 'modified',
-      'A ': 'added',
-      'AM': 'added',
-      'D ': 'deleted',
       ' D': 'deleted',
-      'R ': 'renamed',
-      'C ': 'copied',
-      'U ': 'updated',
-      '??': 'untracked'
+      ' A': 'added',
+
+      // Both staged and modified again
+      'MM': 'staged-and-modified',
+      'AM': 'staged-and-modified',
+      'MD': 'staged-and-deleted',
+      'AD': 'staged-and-deleted',
+
+      // Special cases
+      '??': 'untracked',
+      '!!': 'ignored',
+      'UU': 'conflict',
+      'AA': 'conflict',
+      'DD': 'conflict'
     };
     return map[status] || 'unknown';
   }
