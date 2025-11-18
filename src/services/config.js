@@ -15,7 +15,11 @@ const DEFAULT_CONFIG = {
   language: 'en',
   provider: null,
   model: null,
-  apiKey: null
+  apiKey: null,
+  commitConvention: 'conventional',
+  codeReviewStyle: 'detailed',
+  prMessageStyle: 'detailed',
+  customInstructions: ''
 };
 
 /**
