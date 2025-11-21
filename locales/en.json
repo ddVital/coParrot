@@ -52,6 +52,11 @@
         "plural": "files"
       }
     },
+    "commit": {
+      "noFilesStaged": "No files staged for commit!",
+      "useAddFirst": "Use /add to stage files first, or try /squawk to commit files individually.",
+      "successCommited": ""
+    },
     "errors": {
       "notARepository": "Not a git repository: {path}",
       "commandFailed": "Git command failed: {message}"

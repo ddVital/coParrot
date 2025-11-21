@@ -52,6 +52,10 @@
         "plural": "arquivos"
       }
     },
+    "commit": {
+      "noFilesStaged": "Nenhum arquivo preparado para commit!",
+      "useAddFirst": "Use /add para preparar arquivos primeiro, ou tente /squawk para fazer commit dos arquivos individualmente."
+    },
     "errors": {
       "notARepository": "Não é um repositório git: {path}",
       "commandFailed": "Comando git falhou: {message}"
