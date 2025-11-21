@@ -72,14 +72,12 @@ function showAddedFiles(files) {
   const fileCount = files.length;
   const filesWord = i18n.plural('git.add.files', fileCount);
 
-  const markdown = `
-## ${i18n.t('git.add.successStaged', { count: fileCount, files: filesWord })}
+  const markdown = `## ${i18n.t('git.add.successStaged', { count: fileCount, files: filesWord })}
 
 ${files.map(file => `✓ ${file}`).join('\n')}
 
-${i18n.t('git.add.nextStep')}
-`;
+${i18n.t('git.add.nextStep')}`;
 
   const output = renderer.render(markdown);
-  console.log(output);
+  process.stdout.write(output);
 }
