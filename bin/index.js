@@ -7,6 +7,7 @@ import { program } from 'commander';
 import chalk from 'chalk';
 import { loadConfig, setupConfig } from '../src/services/config.js'
 import { gitAdd } from '../src/commands/add.js'
+import { gitCommit } from '../src/commands/commit.js'
 import i18n from '../src/services/i18n.js';
 
 // Configure commander
@@ -63,11 +64,18 @@ async function handleCommand(cmd, args, cli) {
       break;
     case 'commit':
       const context = repo.diff([], {staged: true});
+
+      if (!context) {
+        cli.streamer.showWarning(i18n.t('git.commit.noFilesStaged'));
+        cli.streamer.showInfo(i18n.t('git.commit.useAddFirst'));
+        return
+      }
+
       const commitMessage = await provider.generateCommitMessage(context);
+      // const commitMessage = "test"
+
       if (commitMessage) {
-        cli.streamer.showSuccess('Commit message approved!');
-        // TODO: Use the approved commit message for the actual commit
-        // gitCommit(repo, status, commitMessage)
+        gitCommit(repo, commitMessage)
       }
       break;
     default:
