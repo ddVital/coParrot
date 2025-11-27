@@ -79,30 +79,39 @@ export function getFunnyMessage() {
 }
 
 /**
- * Display repository statistics in a nice format
+ * Display repository statistics in a single-line status bar format
  * @param {Object} stats - Repository stats object
+ * @param {string} version - App version
  */
-export function displayRepoStats(stats) {
+export function displayRepoStats(stats, version = '1.0.0') {
   if (!stats) return;
 
-  console.log(chalk.dim('  ┌─ Repo Stats ─────────────────────'));
-  console.log(chalk.dim('  │'));
+  const parts = [];
 
-  if (stats.totalCommits) {
-    console.log(chalk.dim('  │ ') + chalk.cyan('📊 Total commits:') + chalk.white(` ${stats.totalCommits}`));
+  // Version
+  parts.push(chalk.cyan(`v${version}`));
+
+  // Last commit (hash + message)
+  if (stats.lastCommit) {
+    try {
+      const commitHash = execSync('git log -1 --pretty=%h', { encoding: 'utf-8' }).trim();
+      const commitMsg = stats.lastCommit.split('\n')[0]; // First line only
+      const shortMsg = commitMsg.length > 50 ? commitMsg.substring(0, 50) + '...' : commitMsg;
+      parts.push(chalk.yellow(`#${commitHash}`) + ' ' + chalk.white(shortMsg));
+    } catch (error) {
+      // Skip if error
+    }
   }
 
-  if (stats.todayCommits > 0) {
-    console.log(chalk.dim('  │ ') + chalk.green('✨ Today\'s commits:') + chalk.white(` ${stats.todayCommits}`));
-  }
-
+  // Current branch
   if (stats.currentBranch) {
-    console.log(chalk.dim('  │ ') + chalk.yellow('🌿 Branch:') + chalk.white(` ${stats.currentBranch}`));
+    parts.push(chalk.magenta(`on ${stats.currentBranch}`));
   }
 
-  console.log(chalk.dim('  │'));
-  console.log(chalk.dim('  │ ') + chalk.magenta(getFunnyMessage()));
-  console.log(chalk.dim('  └───────────────────────────────────'));
+  // Join with · separator (with same padding as CoParrot text)
+  const statusLine = '                          ' + parts.join(chalk.dim(' · '));
+
+  console.log(statusLine);
   console.log();
 }
 
