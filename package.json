@@ -45,6 +45,7 @@
     "marked-terminal": "^7.2.1",
     "micromatch": "^4.0.8",
     "openai": "^6.9.1",
-    "ora": "^8.1.1"
+    "ora": "^8.1.1",
+    "terminal-image": "^4.1.0"
   }
 }
