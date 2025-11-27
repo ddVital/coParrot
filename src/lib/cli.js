@@ -1,4 +1,5 @@
 import inquirer from 'inquirer';
+import readline from 'readline';
 import chalk from 'chalk';
 import MarkdownRenderer from './renderer.js';
 import StreamingOutput from './streamer.js';
@@ -75,22 +76,132 @@ class CLI {
   }
 
   /**
-   * Get user input with multiline support
+   * Get user input with TAB completion support
    */
   async getUserInput() {
-    const answer = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'message',
-        message: chalk.cyan(this.options.prompt),
-        default: '',
-        waitUserInput: true,
-        // Use editor for multiline, input for single line
-        ...(this.options.multiline ? {} : { type: 'input' })
-      }
-    ]);
+    return new Promise((resolve) => {
+      // Create a completer function for TAB completion
+      const completer = (line) => {
+        return this.createCompleter(line);
+      };
 
-    return answer.message.trim();
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+        completer: completer,
+        terminal: true
+      });
+
+      rl.question(chalk.cyan(this.options.prompt), (answer) => {
+        rl.close();
+        resolve(answer.trim());
+      });
+    });
+  }
+
+  /**
+   * Creates smart completions based on current input
+   * @param {string} line - Current input line
+   * @returns {Array} [completions, line]
+   */
+  createCompleter(line) {
+    const trimmedLine = line.trim();
+
+    // File completion for /squawk --ignore (check this FIRST before general command completion)
+    if (trimmedLine.includes('/squawk') && trimmedLine.includes('--ignore')) {
+      return this.completeSquawkIgnore(line);
+    }
+
+    // Command completion (lines starting with /)
+    if (trimmedLine.startsWith('/')) {
+      const commands = [
+        '/status',
+        '/add',
+        '/commit',
+        '/squawk',
+        '/help',
+        '/clear',
+        '/history',
+        '/exit',
+        '/quit'
+      ];
+
+      const hits = commands.filter(cmd => cmd.startsWith(trimmedLine));
+      return [hits.length ? hits : commands, trimmedLine];
+    }
+
+    // No completions
+    return [[], line];
+  }
+
+  /**
+   * Completes file paths for /squawk --ignore command
+   * @param {string} line - Current input line
+   * @returns {Array} [completions, partial]
+   */
+  completeSquawkIgnore(line) {
+    try {
+      // Dynamically import git repository to get changed files
+      const gitRepository = this.getGitRepository();
+      if (!gitRepository) {
+        return [[], ''];
+      }
+
+      const repo = new gitRepository();
+      const changes = repo.getDetailedStatus();
+      const availableFiles = changes.map(c => c.value);
+
+      // Extract the part after the last --ignore
+      const ignoreIndex = line.lastIndexOf('--ignore');
+      if (ignoreIndex === -1) {
+        return [[], ''];
+      }
+
+      const afterIgnore = line.substring(ignoreIndex + 8).trim();
+
+      // Split by spaces to get individual words
+      const words = afterIgnore.split(/\s+/).filter(w => w.length > 0);
+      const currentWord = words[words.length - 1] || '';
+
+      // Find matching files
+      const hits = availableFiles.filter(file =>
+        file.toLowerCase().startsWith(currentWord.toLowerCase())
+      );
+
+      // If multiple matches, show them
+      if (hits.length > 1 && currentWord.length > 0) {
+        console.log('\n' + chalk.dim('Matches: ' + hits.join(', ')));
+      }
+
+      // Return just the matching files and the current word being typed
+      // readline will replace currentWord with the selected completion
+      return [hits.length ? hits : availableFiles, currentWord];
+    } catch (error) {
+      return [[], ''];
+    }
+  }
+
+  /**
+   * Gets git repository class (lazy loaded to avoid circular dependency)
+   */
+  getGitRepository() {
+    try {
+      // Store reference if not already stored
+      if (!this._gitRepository) {
+        // Will be set from outside
+        return null;
+      }
+      return this._gitRepository;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Sets the git repository class for file completion
+   */
+  setGitRepository(gitRepoClass) {
+    this._gitRepository = gitRepoClass;
   }
 
   /**
