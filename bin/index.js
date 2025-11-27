@@ -10,6 +10,7 @@ import { gitAdd } from '../src/commands/add.js'
 import { gitCommit } from '../src/commands/commit.js'
 import { squawk } from '../src/commands/squawk.js'
 import i18n from '../src/services/i18n.js';
+import { parseFlag } from '../src/utils/args-parser.js';
 
 // Configure commander
 program
@@ -80,7 +81,8 @@ async function handleCommand(cmd, args, cli) {
       }
       break;
     case 'squawk':
-      squawk(repo, provider);
+      const ignoredFiles = parseFlag(args, '--ignore');
+      await squawk(repo, provider, { ignore: ignoredFiles });
       break;
     default:
       cli.streamer.showError(`Unknown command: /${cmd}`);
@@ -103,8 +105,10 @@ async function main() {
     multiline: !options.singleLine,
     onCommand: handleCommand,
     customCommands: {
-      'test': 'Run a test command',
-      'demo': 'Show a streaming demo'
+      'status': 'Show repository status with changed files',
+      'add': 'Interactively stage files for commit',
+      'commit': 'Commit staged files with AI-generated message',
+      'squawk': 'Commit each changed file individually (use --ignore to exclude files)'
     },
     config: config
   });
