@@ -55,14 +55,8 @@ class CLI {
           continue;
         }
 
-        // Handle special commands
-        if (userInput.startsWith('/')) {
-          await this.handleCommand(userInput);
-          continue;
-        }
-
-        // Process regular message
-        await this.processMessage(userInput);
+        // All input is treated as commands (no / prefix needed)
+        await this.handleCommand(userInput);
 
       } catch (error) {
         if (error.isTtyError) {
@@ -107,25 +101,28 @@ class CLI {
   createCompleter(line) {
     const trimmedLine = line.trim();
 
-    // File completion for /squawk --ignore (check this FIRST before general command completion)
-    if (trimmedLine.includes('/squawk') && trimmedLine.includes('--ignore')) {
+    // File completion for squawk --ignore (check this FIRST)
+    if (trimmedLine.includes('squawk') && trimmedLine.includes('--ignore')) {
       return this.completeSquawkIgnore(line);
     }
 
-    // Command completion (lines starting with /)
-    if (trimmedLine.startsWith('/')) {
-      const commands = [
-        '/status',
-        '/add',
-        '/commit',
-        '/squawk',
-        '/help',
-        '/clear',
-        '/history',
-        '/exit',
-        '/quit'
-      ];
+    // Command completion - match from the start
+    const commands = [
+      'status',
+      'add',
+      'commit',
+      'squawk',
+      'help',
+      'clear',
+      'history',
+      'exit',
+      'quit'
+    ];
 
+    // Check if we're at the start of input (completing command name)
+    const words = trimmedLine.split(/\s+/);
+    if (words.length === 1) {
+      // Completing the command itself
       const hits = commands.filter(cmd => cmd.startsWith(trimmedLine));
       return [hits.length ? hits : commands, trimmedLine];
     }
@@ -226,10 +223,12 @@ class CLI {
   }
 
   /**
-   * Handle special commands
+   * Handle commands (no / prefix needed)
    */
   async handleCommand(command) {
-    const [cmd, ...args] = command.slice(1).split(' ');
+    // Remove leading / if present (for backwards compatibility)
+    const cleanCommand = command.startsWith('/') ? command.slice(1) : command;
+    const [cmd, ...args] = cleanCommand.split(' ');
 
     switch (cmd.toLowerCase()) {
       case 'help':
@@ -268,17 +267,18 @@ class CLI {
     console.log();
     console.log(chalk.white.bold(i18n.t('cli.messages.availableCommands') + ':'));
     console.log();
-    console.log(chalk.cyan(`  /${i18n.t('cli.commands.help')}`) + chalk.dim(`     - ${i18n.t('cli.commandDescriptions.help')}`));
-    console.log(chalk.cyan(`  /${i18n.t('cli.commands.clear')}`) + chalk.dim(`    - ${i18n.t('cli.commandDescriptions.clear')}`));
-    console.log(chalk.cyan(`  /${i18n.t('cli.commands.history')}`) + chalk.dim(`  - ${i18n.t('cli.commandDescriptions.history')}`));
-    console.log(chalk.cyan(`  /${i18n.t('cli.commands.exit')}`) + chalk.dim(`     - ${i18n.t('cli.commandDescriptions.exit')}`));
+    console.log(chalk.cyan(`  ${i18n.t('cli.commands.help')}`) + chalk.dim(`      - ${i18n.t('cli.commandDescriptions.help')}`));
+    console.log(chalk.cyan(`  ${i18n.t('cli.commands.clear')}`) + chalk.dim(`     - ${i18n.t('cli.commandDescriptions.clear')}`));
+    console.log(chalk.cyan(`  ${i18n.t('cli.commands.history')}`) + chalk.dim(`   - ${i18n.t('cli.commandDescriptions.history')}`));
+    console.log(chalk.cyan(`  ${i18n.t('cli.commands.exit')}`) + chalk.dim(`      - ${i18n.t('cli.commandDescriptions.exit')}`));
+    console.log(chalk.cyan(`  ${i18n.t('cli.commands.quit')}`) + chalk.dim(`      - ${i18n.t('cli.commandDescriptions.quit')}`));
 
     if (this.options.customCommands) {
       console.log();
       console.log(chalk.white.bold(i18n.t('cli.messages.customCommands') + ':'));
       console.log();
       for (const [cmd, description] of Object.entries(this.options.customCommands)) {
-        console.log(chalk.cyan(`  /${cmd}`) + chalk.dim(`     - ${description}`));
+        console.log(chalk.cyan(`  ${cmd}`) + chalk.dim(`     - ${description}`));
       }
     }
 
