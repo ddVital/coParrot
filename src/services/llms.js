@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { confirm, select, input } from '@inquirer/prompts';
 import StreamingOutput from '../lib/streamer.js';
 import chalk from 'chalk';
+import { buildSystemPrompt } from './prompts.js';
 
 
 class LLMOrchestrator {
@@ -161,28 +162,39 @@ class LLMOrchestrator {
   }
 
   /**
-     * Constrói o system prompt baseado no tipo de requisição
-     */
+   * Builds the system prompt based on the request type
+   * @param {string} type - The type of request (commit, branch, pr, review)
+   * @param {string|null} customInstructions - Additional custom instructions
+   * @returns {string} The complete system prompt
+   */
   _buildSystemPrompt(type, customInstructions = null) {
     const baseInstructions = this.options.instructions.customInstructions || '';
-    const additionalInstructions = customInstructions ? `\n\nAdditional instructions: ${customInstructions}` : '';
+
+    // Determine convention/style based on type
+    let convention, style;
 
     switch (type) {
       case 'commit':
-        return `You are a helpful git assistant. Generate a commit message following the
-${this.options.instructions.commitConvention?.type || 'conventional'} convention.\n${baseInstructions}${additionalInstructions}`;
-
+        convention = this.options.instructions.commitConvention?.type || 'conventional';
+        break;
       case 'branch':
-        return `You are a helpful git assistant. Generate a branch name following the
-${this.options.instructions.branchNaming?.type || 'gitflow'} convention.\n${baseInstructions}${additionalInstructions}`;
-
+        convention = this.options.instructions.branchNaming?.type || 'gitflow';
+        break;
       case 'pr':
-        return `You are a helpful git assistant. Generate a PR description in ${this.options.instructions.prMessageStyle
-|| 'detailed'} style.\n${baseInstructions}${additionalInstructions}`;
-
-      default:
-        return `You are a helpful git assistant.\n${baseInstructions}${additionalInstructions}`;
+        style = this.options.instructions.prMessageStyle || 'detailed';
+        break;
+      case 'review':
+        style = this.options.instructions.codeReviewStyle || 'detailed';
+        break;
     }
+
+    // Build the prompt using the centralized prompt builder
+    return buildSystemPrompt(type, {
+      convention,
+      style,
+      baseInstructions,
+      customInstructions
+    });
   }
 
   _showLLMResponse(response) {
