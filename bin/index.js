@@ -85,8 +85,8 @@ async function handleCommand(cmd, args, cli) {
       await squawk(repo, provider, { ignore: ignoredFiles });
       break;
     default:
-      cli.streamer.showError(`Unknown command: /${cmd}`);
-      cli.streamer.showInfo('Available custom commands: /test, /demo');
+      cli.streamer.showError(`Unknown command: ${cmd}`);
+      cli.streamer.showInfo('Type "help" to see available commands');
   }
 }
 
