@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import chalk from 'chalk';
+import i18n from '../services/i18n.js';
 
 /**
  * Get cool facts about the current repository
@@ -91,6 +92,13 @@ export function displayRepoStats(stats, version = '1.0.0') {
   // Version
   parts.push(chalk.cyan(`v${version}`));
 
+
+  // Feedback link (clickable hyperlink using ANSI escape codes)
+  const issuesUrl = 'https://github.com/ddVital/coParrot/issues';
+  const linkText = chalk.cyan.underline(i18n.t('app.feedback.text'));
+  const clickableLink = `\x1b]8;;${issuesUrl}\x1b\\${linkText}\x1b]8;;\x1b\\`;
+  parts.push(chalk.dim(clickableLink));
+
   // Last commit (hash + message)
   if (stats.lastCommit) {
     try {
@@ -108,8 +116,8 @@ export function displayRepoStats(stats, version = '1.0.0') {
     parts.push(chalk.magenta(`on ${stats.currentBranch}`));
   }
 
-  // Join with · separator (with same padding as CoParrot text)
-  const statusLine = '                          ' + parts.join(chalk.dim(' · '));
+  // Join with · separator
+  const statusLine = parts.join(chalk.dim(' · '));
 
   console.log(statusLine);
   console.log();
