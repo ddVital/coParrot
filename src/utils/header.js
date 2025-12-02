@@ -1,13 +1,6 @@
 import figlet from 'figlet';
 import gradient from 'gradient-string';
-import terminalImage from 'terminal-image';
 import chalk from 'chalk';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * Generate a cool gradient header for CoParrot
@@ -22,8 +15,8 @@ export function createHeader(text = 'CoParrot', font = 'Standard') {
     verticalLayout: 'default'
   });
 
-  // Create a cool gradient (blue to purple to pink)
-  const gradientColors = gradient(['#00D4FF', '#7B2FFF', '#FF006E']);
+  // Create a cool gradient (red to yellow to lime to blue)
+  const gradientColors = gradient(['#FF0000', '#FFFF00', '#00FF00', '#0000FF']);
 
   return gradientColors.multiline(asciiArt);
 }
@@ -106,85 +99,11 @@ export function displayHeader(appName = 'CoParrot', version = '1.0.0', tagline =
 }
 
 /**
- * Animate the parrot sprite frames
- * @param {number} loops - Number of times to loop the animation (default: 3)
- * @param {number} frameDelay - Delay between frames in ms (default: 200)
- * @returns {Promise<void>}
- */
-export async function animateParrot(loops = 3, frameDelay = 200) {
-  const frame1Path = path.join(__dirname, '../ascii-text-art1.png');
-  const frame2Path = path.join(__dirname, '../ascii-text-art2.png');
-
-  // Check if files exist
-  if (!fs.existsSync(frame1Path) || !fs.existsSync(frame2Path)) {
-    console.log('Parrot sprite frames not found, skipping animation...');
-    return;
-  }
-
-  try {
-    // Read both frames
-    const frame1Buffer = fs.readFileSync(frame1Path);
-    const frame2Buffer = fs.readFileSync(frame2Path);
-
-    // Convert to terminal images
-    const frame1 = await terminalImage.buffer(frame1Buffer, { width: 30, height: 15 });
-    const frame2 = await terminalImage.buffer(frame2Buffer, { width: 30, height: 15 });
-
-    // Animate
-    for (let i = 0; i < loops; i++) {
-      // Clear and show frame 1
-      process.stdout.write('\x1b[2J\x1b[0f'); // Clear screen
-      console.log(frame1);
-      await new Promise(resolve => setTimeout(resolve, frameDelay));
-
-      // Clear and show frame 2
-      process.stdout.write('\x1b[2J\x1b[0f'); // Clear screen
-      console.log(frame2);
-      await new Promise(resolve => setTimeout(resolve, frameDelay));
-    }
-  } catch (error) {
-    // Silently fail if terminal doesn't support images
-    console.log('Animation not supported in this terminal');
-  }
-}
-
-/**
- * Combines text lines side by side
- * @param {string} left - Left text (with ANSI colors)
- * @param {string} right - Right text (with ANSI colors)
- * @param {number} padding - Padding between columns
- * @returns {string}
- */
-function combineTextSideBySide(left, right, padding = 4) {
-  const leftLines = left.split('\n');
-  const rightLines = right.split('\n');
-  const maxLines = Math.max(leftLines.length, rightLines.length);
-
-  // Calculate width of left column (without ANSI codes)
-  const stripAnsi = (str) => str.replace(/\x1b\[[0-9;]*m/g, '');
-  const leftWidth = Math.max(...leftLines.map(line => stripAnsi(line).length));
-
-  const combined = [];
-  for (let i = 0; i < maxLines; i++) {
-    const leftLine = leftLines[i] || '';
-    const rightLine = rightLines[i] || '';
-
-    // Calculate padding needed (accounting for ANSI codes)
-    const leftVisibleLength = stripAnsi(leftLine).length;
-    const paddingNeeded = leftWidth - leftVisibleLength + padding;
-
-    combined.push(leftLine + ' '.repeat(Math.max(0, paddingNeeded)) + rightLine);
-  }
-
-  return combined.join('\n');
-}
-
-/**
- * Display header text only (parrot will be animated separately)
+ * Display static header with gradient text
  * @param {string} appName - Application name
  * @returns {Promise<void>}
  */
-export async function displayAnimatedHeader(appName = 'CoParrot') {
+export async function displayStaticHeader(appName = 'CoParrot') {
   // Use a solid/filled font for better gradient visibility
   const asciiArt = figlet.textSync(appName, {
     font: 'ANSI Shadow', // Filled font with background
@@ -192,87 +111,18 @@ export async function displayAnimatedHeader(appName = 'CoParrot') {
     verticalLayout: 'default'
   });
 
-  // Apply gradient ONLY to the CoParrot text
-  const gradientColors = gradient(['#00D4FF', '#7B2FFF', '#FF006E']);
+  // Apply gradient to the CoParrot text
+  const gradientColors = gradient(['#eb4a2d', '#4287f5']);
   const gradientHeader = gradientColors.multiline(asciiArt);
 
-  // Add padding to move text to the right (space for parrot on left)
-  const paddedHeader = gradientHeader.split('\n').map(line => '                          ' + line).join('\n');
-
-  console.log('\n' + paddedHeader);
+  console.log('\n' + gradientHeader);
 }
 
-/**
- * Starts a continuous background parrot animation
- * Updates only the parrot area without affecting input
- * @returns {Object} Animation controller with stop() method
- */
-export function startContinuousParrotAnimation() {
-  const frame1Path = path.join(__dirname, '../ascii-text-art1.png');
-  const frame2Path = path.join(__dirname, '../ascii-text-art2.png');
-
-  // Check if files exist
-  if (!fs.existsSync(frame1Path) || !fs.existsSync(frame2Path)) {
-    return { stop: () => {} }; // Return no-op controller
-  }
-
-  let animationInterval = null;
-  let currentFrame = 0;
-  let frames = null;
-
-  // Load frames asynchronously
-  (async () => {
-    try {
-      const frame1Buffer = fs.readFileSync(frame1Path);
-      const frame2Buffer = fs.readFileSync(frame2Path);
-
-      const frame1 = await terminalImage.buffer(frame1Buffer, { width: 20, height: 10 });
-      const frame2 = await terminalImage.buffer(frame2Buffer, { width: 20, height: 10 });
-
-      frames = [frame1, frame2];
-
-      // Start animation loop
-      animationInterval = setInterval(() => {
-        if (!frames) return;
-
-        const frameLines = frames[currentFrame].split('\n');
-
-        // Save cursor position, move to top-left, draw parrot, restore cursor
-        process.stdout.write('\x1b[s'); // Save cursor position
-        process.stdout.write('\x1b[1;1H'); // Move to row 1, col 1
-
-        // Draw each line of the parrot
-        frameLines.forEach((line, index) => {
-          process.stdout.write(`\x1b[${index + 1};1H`); // Move to row
-          process.stdout.write(line);
-        });
-
-        process.stdout.write('\x1b[u'); // Restore cursor position
-
-        currentFrame = (currentFrame + 1) % 2;
-      }, 300); // 300ms per frame
-    } catch (error) {
-      // Silent fail
-    }
-  })();
-
-  // Return controller
-  return {
-    stop: () => {
-      if (animationInterval) {
-        clearInterval(animationInterval);
-        animationInterval = null;
-      }
-    }
-  };
-}
 
 export default {
   createHeader,
   getRandomGradient,
   animateHeader,
   displayHeader,
-  animateParrot,
-  displayAnimatedHeader,
-  startContinuousParrotAnimation
+  displayStaticHeader
 };
