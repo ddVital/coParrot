@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { createHeader, displayAnimatedHeader } from '../utils/header.js';
+import { createHeader, displayStaticHeader } from '../utils/header.js';
 import { getRepoStats, displayRepoStats } from '../utils/repo-stats.js';
 import i18n from '../services/i18n.js';
 
@@ -175,14 +175,14 @@ class StreamingOutput {
   }
 
   /**
-   * Display welcome banner with gradient header
+   * Display welcome banner with gradient header and static parrot
    */
   async showWelcome(appName = 'CoParrot', version = '1.0.0', config = {}) {
     this.clear();
     console.log();
 
-    // Display animated parrot header (just the CoParrot text)
-    await displayAnimatedHeader(appName);
+    // Display static parrot header
+    await displayStaticHeader(appName);
 
     // Display repository stats status bar
     const stats = getRepoStats();
