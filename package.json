@@ -1,15 +1,15 @@
 {
   "name": "coparrot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Your multilingual Git assistant - AI-powered CLI tool for Git operations",
   "main": "bin/index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js",
+    "start": "node bin/index.js",
+    "dev": "node bin/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "coparrot": "./index.js"
+    "coparrot": "./bin/index.js"
   },
   "keywords": [
     "git",
@@ -19,10 +19,21 @@
     "internationalization",
     "multilingual",
     "terminal",
-    "ai"
+    "ai",
+    "commit-message",
+    "ai-powered",
+    "developer-tools"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "ddVital <ddvital0@gmail.com>",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ddVital/coParrot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ddVital/coParrot/issues"
+  },
+  "homepage": "https://github.com/ddVital/coParrot#readme",
   "type": "module",
   "i18n": {
     "defaultLanguage": "en",
@@ -45,7 +56,6 @@
     "marked-terminal": "^7.2.1",
     "micromatch": "^4.0.8",
     "openai": "^6.9.1",
-    "ora": "^8.1.1",
-    "terminal-image": "^4.1.0"
+    "ora": "^8.1.1"
   }
 }
