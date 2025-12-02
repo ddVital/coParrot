@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import { loadConfig, setupConfig } from '../src/services/config.js'
 import { gitAdd } from '../src/commands/add.js'
 import { gitCommit } from '../src/commands/commit.js'
+import { gitCheckout } from '../src/commands/checkout.js'
 import { squawk } from '../src/commands/squawk.js'
 import i18n from '../src/services/i18n.js';
 import { parseFlag } from '../src/utils/args-parser.js';
@@ -82,11 +83,29 @@ async function handleCommand(cmd, args, cli) {
       break;
     case 'squawk':
       const ignoredFiles = parseFlag(args, '--ignore');
-      await squawk(repo, provider, { ignore: ignoredFiles });
+      const groupedFiles = parseFlag(args, '--group');
+
+      await squawk(repo, provider, { ignore: ignoredFiles, group: groupedFiles });
       break;
     case 'checkout':
-      const test = await repo.getBranches({ count: 10 });
-      console.log(test)
+      // const branchName = parseFlag(args, '-b');
+      const branchName = parseFlag(args, '-b').length > 0 ? parseFlag(args, '-b') : args[0];
+      const changesContext = parseFlag(args, '-c') || parseFlag(args, '--context');
+      const shouldGenerateName = args.includes('--ai');
+      const c = args.includes('-co')
+
+      gitCheckout(repo, provider, {
+        name: branchName,
+        changesContext,
+        shouldGenerateName
+      })
+      break;
+    case 'setup':
+      console.log();
+      cli.streamer.showInfo(i18n.t('setup.reconfigureMessage'));
+      console.log();
+      await setupConfig();
+      break;
     default:
       cli.streamer.showError(`Unknown command: ${cmd}`);
       cli.streamer.showInfo('Type "help" to see available commands');
@@ -104,14 +123,15 @@ async function main() {
 
   const cli = new CLI({
     appName: 'CoParrot',
-    version: '1.0.0',
+    version: '1.0.1',
     multiline: !options.singleLine,
     onCommand: handleCommand,
     customCommands: {
       'status': 'Show repository status with changed files',
       'add': 'Interactively stage files for commit',
       'commit': 'Commit staged files with AI-generated message',
-      'squawk': 'Commit each changed file individually (use --ignore to exclude files)'
+      'squawk': 'Commit each changed file individually (use --ignore to exclude files)',
+      'setup': 'Reconfigure coParrot settings (provider, API key, conventions, etc.)'
     },
     config: config
   });
