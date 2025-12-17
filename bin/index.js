@@ -12,12 +12,13 @@ import { gitCheckout } from '../src/commands/checkout.js'
 import { squawk } from '../src/commands/squawk.js'
 import i18n from '../src/services/i18n.js';
 import { parseFlag } from '../src/utils/args-parser.js';
+import { VERSION } from '../src/utils/index.js';
 
 // Configure commander
 program
   .name('coparrot')
   .description('your git assistant')
-  .version('1.0.0')
+  .version(VERSION)
   .option('-s, --single-line', 'Use single-line input instead of editor')
   .parse(process.argv);
 
@@ -84,8 +85,19 @@ async function handleCommand(cmd, args, cli) {
     case 'squawk':
       const ignoredFiles = parseFlag(args, '--ignore');
       const groupedFiles = parseFlag(args, '--group');
+      const fromDate = parseFlag(args, '--from')[0] || null;
+      const toDate = parseFlag(args, '--to')[0] || null;
+      const timezone = parseFlag(args, '--timezone')[0] || null;
+      const excludeWeekends = args.includes('--exclude-weekends');
 
-      await squawk(repo, provider, { ignore: ignoredFiles, group: groupedFiles });
+      await squawk(repo, provider, {
+        ignore: ignoredFiles,
+        group: groupedFiles,
+        from: fromDate,
+        to: toDate,
+        timezone: timezone,
+        excludeWeekends: excludeWeekends
+      });
       break;
     case 'checkout':
       // const branchName = parseFlag(args, '-b');
@@ -130,7 +142,7 @@ async function main() {
       'status': 'Show repository status with changed files',
       'add': 'Interactively stage files for commit',
       'commit': 'Commit staged files with AI-generated message',
-      'squawk': 'Commit each changed file individually (use --ignore to exclude files)',
+      'squawk': 'Commit each file individually with realistic timestamps (--from YYYY-MM-DD[THH:MM:SS], --to, --exclude-weekends)',
       'setup': 'Reconfigure coParrot settings (provider, API key, conventions, etc.)'
     },
     config: config
