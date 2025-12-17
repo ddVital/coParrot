@@ -71,6 +71,52 @@ class CLI {
   }
 
   /**
+   * Build enhanced prompt with context (directory, branch, model)
+   */
+  buildEnhancedPrompt() {
+    // Get current directory (show relative to home if possible)
+    const cwd = process.cwd();
+    const home = process.env.HOME || process.env.USERPROFILE;
+    const displayPath = home ? cwd.replace(home, '~') : cwd;
+
+    // Try to get git branch with dirty indicator
+    let branchInfo = '';
+    let dirtyIndicator = '';
+    try {
+      if (this._gitRepository) {
+        const repo = new this._gitRepository();
+        const branch = repo.getCurrentBranch().trim();
+        if (branch) {
+          // Check if working directory has changes
+          const isDirty = repo.hasUncommittedChanges();
+          dirtyIndicator = isDirty ? chalk.rgb(239, 68, 68)('*') : '';
+          branchInfo = chalk.rgb(234, 179, 8)(`[⎇ ${branch}${dirtyIndicator}]`);
+        }
+      }
+    } catch {
+      // Not in a git repo or error getting branch
+    }
+
+    // Build separator
+    const width = process.stdout.columns || 80;
+    const separator = chalk.rgb(100, 116, 139)('─'.repeat(width));
+
+    // Build context line (directory + branch + helpful hints)
+    const contextLine = ` ${chalk.dim(displayPath)}${branchInfo}`;
+
+    // Build help hint line (git-focused)
+    const hints = [
+      chalk.cyan('status'),
+      chalk.cyan('commit'),
+      chalk.cyan('add'),
+      chalk.cyan('help')
+    ].join(chalk.dim(' · '));
+    const helpLine = ` ${separator}\n ${chalk.dim('Commands:')} ${hints}`;
+
+    return `${contextLine}\n${helpLine}\n${separator}\n`;
+  }
+
+  /**
    * Get user input with TAB completion support
    */
   async getUserInput() {
@@ -87,7 +133,10 @@ class CLI {
         terminal: true
       });
 
-      rl.question(chalk.cyan(this.options.prompt), (answer) => {
+      // Create colorful prompt with parrot colors
+      const promptText = chalk.rgb(34, 197, 94).bold(this.options.prompt);
+
+      rl.question(promptText, (answer) => {
         rl.close();
         resolve(answer.trim());
       });
@@ -236,6 +285,10 @@ class CLI {
         this.showHelp();
         break;
 
+      case '?':
+        this.showQuickHelp();
+        break;
+
       case 'clear':
         this.streamer.clear();
         await this.streamer.showWelcome(this.options.appName, this.options.version, this.config);
@@ -262,24 +315,41 @@ class CLI {
   }
 
   /**
+   * Show quick help
+   */
+  showQuickHelp() {
+    console.log();
+    console.log(chalk.rgb(34, 197, 94).bold(' Quick Commands:'));
+    console.log();
+    console.log(chalk.dim('   status     ') + chalk.white('View repository changes'));
+    console.log(chalk.dim('   add        ') + chalk.white('Interactively stage files'));
+    console.log(chalk.dim('   commit     ') + chalk.white('Commit with AI-generated message'));
+    console.log(chalk.dim('   help       ') + chalk.white('Show all available commands'));
+    console.log();
+  }
+
+  /**
    * Show help message
    */
   showHelp() {
     console.log();
-    console.log(chalk.white.bold(i18n.t('cli.messages.availableCommands') + ':'));
+    console.log(chalk.rgb(6, 182, 212).bold(' Available Commands'));
     console.log();
-    console.log(chalk.cyan(`  ${i18n.t('cli.commands.help')}`) + chalk.dim(`      - ${i18n.t('cli.commandDescriptions.help')}`));
-    console.log(chalk.cyan(`  ${i18n.t('cli.commands.clear')}`) + chalk.dim(`     - ${i18n.t('cli.commandDescriptions.clear')}`));
-    console.log(chalk.cyan(`  ${i18n.t('cli.commands.history')}`) + chalk.dim(`   - ${i18n.t('cli.commandDescriptions.history')}`));
-    console.log(chalk.cyan(`  ${i18n.t('cli.commands.exit')}`) + chalk.dim(`      - ${i18n.t('cli.commandDescriptions.exit')}`));
-    console.log(chalk.cyan(`  ${i18n.t('cli.commands.quit')}`) + chalk.dim(`      - ${i18n.t('cli.commandDescriptions.quit')}`));
 
+    // Built-in commands
+    console.log(chalk.rgb(34, 197, 94).bold('  System:'));
+    console.log(chalk.dim(`    ${i18n.t('cli.commands.help').padEnd(12)}`) + chalk.white(`${i18n.t('cli.commandDescriptions.help')}`));
+    console.log(chalk.dim(`    ${'?'.padEnd(12)}`) + chalk.white('Show quick help'));
+    console.log(chalk.dim(`    ${i18n.t('cli.commands.clear').padEnd(12)}`) + chalk.white(`${i18n.t('cli.commandDescriptions.clear')}`));
+    console.log(chalk.dim(`    ${i18n.t('cli.commands.history').padEnd(12)}`) + chalk.white(`${i18n.t('cli.commandDescriptions.history')}`));
+    console.log(chalk.dim(`    ${i18n.t('cli.commands.exit').padEnd(12)}`) + chalk.white(`${i18n.t('cli.commandDescriptions.exit')}`));
+
+    // Git commands
     if (this.options.customCommands) {
       console.log();
-      console.log(chalk.white.bold(i18n.t('cli.messages.customCommands') + ':'));
-      console.log();
+      console.log(chalk.rgb(34, 197, 94).bold('  Git Operations:'));
       for (const [cmd, description] of Object.entries(this.options.customCommands)) {
-        console.log(chalk.cyan(`  ${cmd}`) + chalk.dim(`     - ${description}`));
+        console.log(chalk.dim(`    ${cmd.padEnd(12)}`) + chalk.white(`${description}`));
       }
     }
 

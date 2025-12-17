@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import { createHeader, displayStaticHeader } from '../utils/header.js';
-import { getRepoStats, displayRepoStats } from '../utils/repo-stats.js';
+import { getRepoStats } from '../utils/repo-stats.js';
 import i18n from '../services/i18n.js';
+import TransientProgress from '../utils/transient-progress.js';
 
 /**
  * Handles streaming output with elegant formatting
@@ -12,6 +13,7 @@ class StreamingOutput {
     this.renderer = renderer;
     this.currentSpinner = null;
     this.buffer = '';
+    this.transientProgress = new TransientProgress();
   }
 
   /**
@@ -98,8 +100,8 @@ class StreamingOutput {
    */
   showError(error) {
     this.stopThinking();
-    console.error('\n' + chalk.red.bold(i18n.t('output.prefixes.error') + ' ') + chalk.red(error.message || error));
-    console.error(chalk.gray('─'.repeat(process.stdout.columns || 80)));
+    console.error('\n' + chalk.rgb(239, 68, 68).bold('✗ ' + i18n.t('output.prefixes.error') + ' ') + chalk.white(error.message || error));
+    console.error(chalk.rgb(239, 68, 68)('▓'.repeat(process.stdout.columns || 80)));
   }
 
   /**
@@ -107,7 +109,7 @@ class StreamingOutput {
    */
   showSuccess(message) {
     this.stopThinking();
-    console.log('\n' + chalk.green(i18n.t('output.prefixes.success') + ' ') + chalk.white(message));
+    console.log('\n' + chalk.rgb(34, 197, 94).bold('✓ ' + i18n.t('output.prefixes.success') + ' ') + chalk.white(message));
   }
 
   /**
@@ -115,7 +117,7 @@ class StreamingOutput {
    */
   showInfo(message) {
     this.stopThinking();
-    console.log('\n' + chalk.cyan(i18n.t('output.prefixes.info') + ' ') + chalk.white(message));
+    console.log('\n' + chalk.rgb(6, 182, 212).bold('ℹ ' + i18n.t('output.prefixes.info') + ' ') + chalk.white(message));
   }
 
   showGitInfo(context) {
@@ -156,7 +158,7 @@ class StreamingOutput {
    */
   showWarning(message) {
     this.stopThinking();
-    console.log('\n' + chalk.yellow(i18n.t('output.prefixes.warning') + ' ') + chalk.white(message));
+    console.log('\n' + chalk.rgb(234, 179, 8).bold('⚠ ' + i18n.t('output.prefixes.warning') + ' ') + chalk.white(message));
   }
 
   /**
@@ -164,7 +166,7 @@ class StreamingOutput {
    */
   showSeparator() {
     const width = process.stdout.columns || 80;
-    console.log(chalk.gray('─'.repeat(width)));
+    console.log(chalk.rgb(100, 116, 139)('─'.repeat(width)));
   }
 
   /**
@@ -175,30 +177,77 @@ class StreamingOutput {
   }
 
   /**
+   * Display a pixel-art style border
+   */
+  showPixelBorder() {
+    const width = process.stdout.columns || 80;
+    console.log(chalk.rgb(34, 197, 94)('▓'.repeat(width)));
+  }
+
+  /**
    * Display welcome banner with gradient header and static parrot
    */
-  async showWelcome(appName = 'CoParrot', version = '1.0.0', config = {}) {
+  async showWelcome(appName = 'CoParrot', version = '1.0.1', config = {}) {
     this.clear();
     console.log();
 
-    // Display static parrot header
-    await displayStaticHeader(appName);
+    // Display static parrot header with mascot in bordered box
+    await displayStaticHeader(appName, version);
 
-    // Display repository stats status bar
-    const stats = getRepoStats();
-    if (stats) {
-      displayRepoStats(stats, version);
-    }
+    // Descriptive tagline
+    const providerName = config.provider ? config.provider.toUpperCase() : 'not configured';
+    const providerColor = config.provider ? chalk.rgb(34, 197, 94) : chalk.rgb(239, 68, 68);
+
+    console.log(chalk.dim(` ${appName} can write, analyze and enhance your git workflow right from your terminal.`));
+    console.log(chalk.dim(` LLM Provider: `) + providerColor(providerName) + chalk.dim(`. ${appName} uses AI, check for mistakes.`));
+    console.log();
 
     // Show helpful info for first-time users
     if (!config.provider) {
-      console.log(chalk.yellow('  ⚡ ' + i18n.t('app.welcome.firstTime')));
+      console.log(chalk.rgb(234, 179, 8)(' ⚡ ' + i18n.t('app.welcome.firstTime')));
+      console.log();
+    } else {
+      // Quick command hints
+      console.log(chalk.dim(' Type ') + chalk.cyan('help') + chalk.dim(' for commands, ') + chalk.cyan('status') + chalk.dim(' to view changes, or ') + chalk.cyan('?') + chalk.dim(' for quick help.'));
       console.log();
     }
+  }
 
-    console.log(chalk.dim('  ' + i18n.t('app.welcome.typeMessage')));
-    console.log();
-    this.showSeparator();
+  /**
+   * Start a transient progress operation (disappears when done)
+   * @param {string} message - Initial message to display
+   * @returns {Object} - Operation controller with update, complete, error methods
+   */
+  startTransientOperation(message) {
+    this.stopThinking(); // Stop any existing spinner
+    return this.transientProgress.createOperation(message);
+  }
+
+  /**
+   * Start a generating operation with shimmer effect (for AI content generation)
+   * @param {string} message - Initial message to display
+   * @returns {Object} - Operation controller with shimmer effects
+   */
+  startGeneratingOperation(message) {
+    this.stopThinking(); // Stop any existing spinner
+    return this.transientProgress.createGeneratingOperation(message);
+  }
+
+  /**
+   * Show a simple transient message (for quick status updates)
+   * @param {string} message - Message to display
+   * @param {string} status - 'running', 'success', 'error'
+   */
+  showTransientMessage(message, status = 'running') {
+    this.stopThinking();
+    this.transientProgress.showTransient(message, status);
+  }
+
+  /**
+   * Clear all transient messages
+   */
+  clearTransient() {
+    this.transientProgress.clearTransient();
   }
 }
 

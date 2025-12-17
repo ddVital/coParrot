@@ -168,10 +168,11 @@ class GitRepository {
    * Create commit
    * @param {string} message - Commit message
    * @param {Object} options - Commit options
+   * @param {Date} options.date - Custom commit date (sets both author and committer date)
    * @returns {string} Command output
    */
   commit(message, options = {}) {
-    const { amend = false, noVerify = false } = options;
+    const { amend = false, noVerify = false, date = null } = options;
 
     // Escape message properly
     const escapedMessage = message.replace(/"/g, '\\"').replace(/\$/g, '\\$');
@@ -180,6 +181,26 @@ class GitRepository {
     if (amend) cmd += ' --amend';
     if (noVerify) cmd += ' --no-verify';
     cmd += ` -m "${escapedMessage}"`;
+
+    // If custom date provided, use environment variables to set both author and committer dates
+    if (date) {
+      const dateStr = date.toISOString();
+      try {
+        return execSync(cmd, {
+          cwd: this.repoPath,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: {
+            ...process.env,
+            GIT_AUTHOR_DATE: dateStr,
+            GIT_COMMITTER_DATE: dateStr
+          }
+        });
+      } catch (error) {
+        const message = error.stderr?.trim() || error.message;
+        throw new Error(i18n.t('git.errors.commandFailed', { message }));
+      }
+    }
 
     return this.exec(cmd);
   }
