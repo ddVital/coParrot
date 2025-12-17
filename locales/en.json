@@ -232,7 +232,8 @@
       "retryWithInstructions": "✎ Retry with custom instructions"
     },
     "approvalPrompt": "What would you like to do?",
-    "customInstructionsPrompt": "Enter your custom instructions:"
+    "customInstructionsPrompt": "Enter your custom instructions:",
+    "generationComplete": "Generation complete"
   },
   "common": {
     "yes": "Yes",
@@ -245,6 +246,7 @@
     "loading": "Loading...",
     "done": "Done",
     "failed": "Failed",
-    "success": "Success"
+    "success": "Success",
+    "version": "Version"
   }
 }
