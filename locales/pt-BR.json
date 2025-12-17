@@ -231,7 +231,8 @@
       "retryWithInstructions": "✎ Tentar novamente com instruções personalizadas"
     },
     "approvalPrompt": "O que você gostaria de fazer?",
-    "customInstructionsPrompt": "Digite suas instruções personalizadas:"
+    "customInstructionsPrompt": "Digite suas instruções personalizadas:",
+    "generationComplete": "Geração completa"
   },
   "common": {
     "yes": "Sim",
@@ -244,6 +245,7 @@
     "loading": "Carregando...",
     "done": "Concluído",
     "failed": "Falhou",
-    "success": "Sucesso"
+    "success": "Sucesso",
+    "version": "Versão"
   }
 }
