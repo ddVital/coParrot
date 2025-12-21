@@ -27,6 +27,7 @@ class CLI {
     this.streamer = new StreamingOutput(this.renderer);
     this.conversationHistory = [];
     this.isRunning = false;
+    this.lastCtrlC = 0; // Track last Ctrl+C timestamp for double-press detection
   }
 
   /**
@@ -37,11 +38,29 @@ class CLI {
 
     this.isRunning = true;
 
-    // Handle graceful shutdown
-    process.on('SIGINT', () => this.shutdown());
+    // Handle graceful shutdown with double Ctrl+C
+    process.on('SIGINT', () => this.handleCtrlC());
     process.on('SIGTERM', () => this.shutdown());
 
     await this.mainLoop();
+  }
+
+  /**
+   * Handle Ctrl+C - require double press to exit
+   */
+  handleCtrlC() {
+    const now = Date.now();
+    const timeSinceLastCtrlC = now - this.lastCtrlC;
+
+    // If less than 2 seconds since last Ctrl+C, exit
+    if (timeSinceLastCtrlC < 2000) {
+      this.shutdown();
+    } else {
+      // First Ctrl+C - show message and update timestamp
+      console.log();
+      this.streamer.showWarning(i18n.t('cli.messages.pressAgainToExit') || 'Press Ctrl+C again to exit, or type "exit"');
+      this.lastCtrlC = now;
+    }
   }
 
   /**
@@ -131,6 +150,26 @@ class CLI {
         output: process.stdout,
         completer: completer,
         terminal: true
+      });
+
+      // Override readline's default SIGINT behavior to implement double Ctrl+C
+      rl.on('SIGINT', () => {
+        const now = Date.now();
+        const timeSinceLastCtrlC = now - this.lastCtrlC;
+
+        // If less than 2 seconds since last Ctrl+C, exit
+        if (timeSinceLastCtrlC < 2000) {
+          rl.close();
+          this.shutdown();
+        } else {
+          // First Ctrl+C - show message and update timestamp
+          console.log();
+          this.streamer.showWarning(i18n.t('cli.messages.pressAgainToExit') || 'Press Ctrl+C again to exit, or type "exit"');
+          this.lastCtrlC = now;
+          // Close this readline instance and start fresh
+          rl.close();
+          resolve('');
+        }
       });
 
       // Create colorful prompt with parrot colors

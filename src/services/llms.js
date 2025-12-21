@@ -1,5 +1,7 @@
 
 import OpenAI from 'openai';
+import {GoogleGenAI} from '@google/genai';
+
 import { confirm, select, input } from '@inquirer/prompts';
 import StreamingOutput from '../lib/streamer.js';
 import chalk from 'chalk';
@@ -31,7 +33,7 @@ class LLMOrchestrator {
         return new Anthropic({ apiKey: this.options.apiKey });
         break;
       case 'gemini':
-        return new GoogleGenerativeAI(this.options.apiKey);
+        return new GoogleGenAI({ apiKey: this.options.apiKey });
         break;
       default:
         throw new Error(`Unsupported provider: ${this.options.provider}`);
@@ -87,9 +89,17 @@ class LLMOrchestrator {
 
     while (!approved) {
       try {
-        this.streamer.startThinking(loadingMessage);
+        // Use shimmer effect for generation
+        const operation = this.streamer.startGeneratingOperation(loadingMessage);
+
+        // Add substeps to show what's happening
+        operation.substep(`Processing ${type} request`);
+        operation.substep(`Calling ${this.options.provider} API`);
+
         response = await this.call(context, type, currentInstructions);
-        this.streamer.stopThinking();
+
+        // Mark as complete (will auto-clear after brief moment)
+        operation.complete(i18n.t('llm.generationComplete'));
 
         const result = this.options.skipApproval
           ? { action: 'approve' }
@@ -104,7 +114,7 @@ class LLMOrchestrator {
           currentInstructions = result.customInstructions;
         }
       } catch (error) {
-        this.streamer.stopThinking();
+        this.streamer.clearTransient();
         this.streamer.showError(`Error generating ${type}: ${error.message}`);
         throw error;
       }
@@ -163,13 +173,12 @@ class LLMOrchestrator {
   }
 
   async _callGemini(context, type, customInstructions = null) {
-    const model = this.client.getGenerativeModel({
-      model: this.options.model || 'gemini-pro'
-    });
-
     const prompt = `${this._buildSystemPrompt(type, customInstructions)}\n\n${JSON.stringify(context)}`;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+
+    const response = await this.client.models.generateContent({
+      model: this.options.model || 'gemini-2.5-flash',
+      contents: prompt
+    })
 
     return response.text();
   }

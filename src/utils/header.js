@@ -1,128 +1,208 @@
 import figlet from 'figlet';
 import gradient from 'gradient-string';
 import chalk from 'chalk';
+import i18n from '../services/i18n.js';
+import { getRepoStats } from './repo-stats.js';
+import { VERSION } from './index.js';
 
 /**
  * Generate a cool gradient header for CoParrot
- * @param {string} text - Text to display (default: "CoParrot")
- * @param {string} font - Figlet font to use (default: "Standard")
- * @returns {string} Gradient colored ASCII art
  */
 export function createHeader(text = 'CoParrot', font = 'Standard') {
   const asciiArt = figlet.textSync(text, {
-    font: font,
+    font,
     horizontalLayout: 'default',
     verticalLayout: 'default'
   });
 
-  // Create a cool gradient (red to yellow to lime to blue)
-  const gradientColors = gradient(['#FF0000', '#FFFF00', '#00FF00', '#0000FF']);
-
-  return gradientColors.multiline(asciiArt);
+  return gradient(['#FFFF00']).multiline(asciiArt);
 }
 
 /**
  * Get a random cool gradient
- * @returns {function} Gradient function
  */
 export function getRandomGradient() {
   const gradients = [
-    // Ocean (blue to cyan)
-    gradient(['#0A2463', '#3E92CC', '#00F5FF']),
-    // Sunset (orange to pink)
-    gradient(['#FF6B35', '#F7931E', '#FF006E']),
-    // Forest (green to teal)
-    gradient(['#2D6A4F', '#40916C', '#74C69D']),
-    // Purple Dream
-    gradient(['#7209B7', '#B5179E', '#F72585']),
-    // Fire
-    gradient(['#FF0000', '#FF6B00', '#FFD700']),
-    // Rainbow
-    gradient(['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'])
+    gradient(['#0A2463', '#3E92CC', '#00F5FF']), // Ocean
+    gradient(['#FF6B35', '#F7931E', '#FF006E']), // Sunset
+    gradient(['#2D6A4F', '#40916C', '#74C69D']), // Forest
+    gradient(['#7209B7', '#B5179E', '#F72585']), // Purple
+    gradient(['#FF0000', '#FF6B00', '#FFD700']), // Fire
+    gradient(['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF'])
   ];
 
   return gradients[Math.floor(Math.random() * gradients.length)];
 }
 
 /**
- * Create an animated gradient header (cycles through colors)
- * @param {string} text - Text to display
- * @param {string} font - Figlet font
- * @param {number} duration - Animation duration in ms
- * @param {number} fps - Frames per second
+ * Animated header
  */
-export async function animateHeader(text = 'CoParrot', font = 'Standard', duration = 2000, fps = 10) {
-  const asciiArt = figlet.textSync(text, {
-    font: font,
-    horizontalLayout: 'default',
-    verticalLayout: 'default'
-  });
-
+export async function animateHeader(
+  text = 'CoParrot',
+  font = 'Standard',
+  duration = 2000,
+  fps = 10
+) {
+  const asciiArt = figlet.textSync(text, { font });
   const frameDelay = 1000 / fps;
   const frames = Math.floor(duration / frameDelay);
 
   const gradients = [
     gradient(['#00D4FF', '#7B2FFF', '#FF006E']),
     gradient(['#FF006E', '#7B2FFF', '#00D4FF']),
-    gradient(['#7B2FFF', '#FF006E', '#00D4FF']),
+    gradient(['#7B2FFF', '#FF006E', '#00D4FF'])
   ];
 
   for (let i = 0; i < frames; i++) {
     console.clear();
-    const currentGradient = gradients[i % gradients.length];
-    console.log(currentGradient.multiline(asciiArt));
-    await new Promise(resolve => setTimeout(resolve, frameDelay));
+    console.log(gradients[i % gradients.length].multiline(asciiArt));
+    await new Promise(r => setTimeout(r, frameDelay));
   }
 }
 
 /**
- * Display a static header with version info
- * @param {string} appName - Application name
- * @param {string} version - Version string
- * @param {string} tagline - Optional tagline
+ * Pixel-art parrot
  */
-export function displayHeader(appName = 'CoParrot', version = '1.0.0', tagline = null) {
-  const header = createHeader(appName);
-  console.log('\n' + header);
+export function createPixelParrot() {
+  const parrot = [
+    '       ▄██████▄         ',
+    '   ▄█▀▀▀▀▀██▀▀▀▀▀█▄     ',
+    '  ▐█      ▐▌      █▌    ',
+    '  ▐█▄    ▄██▄    ▄█▌    ',
+    ' ▄▄███████▀▀███████▄▄   ',
+    '████     ▄  ▄     ████  ',
+    '████     █  █     ████  ',
+    '▀███▄            ▄███▀  ',
+    '   ▀▀████████████▀▀     '
+  ];
 
-  if (version) {
-    const versionGradient = gradient(['#7B2FFF', '#FF006E']);
-    console.log(versionGradient(`  v${version}`));
-  }
-
-  if (tagline) {
-    const taglineGradient = gradient(['#00D4FF', '#7B2FFF']);
-    console.log(taglineGradient(`  ${tagline}`));
-  }
-
-  console.log('');
+  return parrot.map((line, i) =>
+    i < 2
+      ? chalk.rgb(253, 224, 71)(line) // yellow
+      : chalk.rgb(22, 163, 74)(line)  // green
+  );
 }
 
 /**
- * Display static header with gradient text
- * @param {string} appName - Application name
- * @returns {Promise<void>}
+ * Pixel-art title
  */
-export async function displayStaticHeader(appName = 'CoParrot') {
-  // Use a solid/filled font for better gradient visibility
-  const asciiArt = figlet.textSync(appName, {
-    font: 'ANSI Shadow', // Filled font with background
-    horizontalLayout: 'default',
-    verticalLayout: 'default'
+export function createPixelTitle(text = 'COPARROT') {
+  const asciiArt = figlet.textSync(text, {
+    font: 'ANSI Shadow',
+    horizontalLayout: 'fitted'
   });
 
-  // Apply gradient to the CoParrot text
-  const gradientColors = gradient(['#eb4a2d', '#4287f5']);
-  const gradientHeader = gradientColors.multiline(asciiArt);
-
-  console.log('\n' + gradientHeader);
+  return gradient(['#16a34a', '#139242']).multiline(asciiArt).split('\n');
 }
 
+/**
+ * Utils
+ */
+const stripAnsi = str => str.replace(/\x1B\[[0-9;]*m/g, '');
+const visibleLength = str => stripAnsi(str).length;
+const ellipsis = (str, max = 54) =>
+  str && str.length > max ? str.slice(0, max - 2) + '..' : str;
+
+/**
+ * Static boxed header with title + meta info
+ */
+export async function displayStaticHeader(
+  appName = 'CoParrot',
+  {
+    version = '',
+    commitMessage = '',
+    branch = ''
+  } = {}
+) {
+  const titleLines = createPixelTitle(appName.toUpperCase());
+  const parrotLines = createPixelParrot();
+  const repoStats = await getRepoStats();
+
+  const metaLine = `${ellipsis(repoStats.lastCommit)} · on ${repoStats.currentBranch}`;
+
+  const boxWidth = 100;
+  const contentWidth = boxWidth - 4;
+
+  console.log(chalk.dim('┌──' + ' '.repeat(boxWidth - 6) + '──┐'));
+
+  const welcome = `${i18n.t('common.version')} ${VERSION}`;
+  console.log(
+    chalk.dim('│  ') +
+      parrotLines[0] +
+      ' '.repeat(
+        contentWidth -
+          visibleLength(parrotLines[0]) -
+          welcome.length -
+          2
+      ) +
+      chalk.white(welcome) +
+      chalk.dim('  │')
+  );
+
+  const maxLines = Math.max(
+    titleLines.length + 1,
+    parrotLines.length
+  );
+
+  for (let i = 0; i < maxLines; i++) {
+    const parrot = parrotLines[i + 1] || '';
+
+    // Title lines
+    if (i < titleLines.length) {
+      const title = titleLines[i];
+      const space =
+        contentWidth -
+        visibleLength(title) -
+        visibleLength(parrot) -
+        2;
+
+      console.log(
+        chalk.dim('│  ') +
+          parrot +
+          ' '.repeat(Math.max(0, space)) +
+          title +
+          chalk.dim('  │')
+      );
+      continue;
+    }
+
+    // Meta line (right below title)
+    if (i === titleLines.length) {
+      const space =
+        contentWidth -
+        visibleLength(metaLine) -
+        visibleLength(parrot) -
+        2;
+
+      console.log(
+        chalk.dim('│  ') +
+          parrot +
+          ' '.repeat(Math.max(0, space)) +
+          metaLine +
+          chalk.dim('  │')
+      );
+      continue;
+    }
+
+    // Remaining parrot lines
+    if (parrot.trim()) {
+      console.log(
+        chalk.dim('│  ') +
+          parrot +
+          ' '.repeat(contentWidth - visibleLength(parrot)) +
+          chalk.dim('  │')
+      );
+    }
+  }
+
+  console.log(chalk.dim('└──' + ' '.repeat(boxWidth - 6) + '──┘'));
+}
 
 export default {
   createHeader,
   getRandomGradient,
   animateHeader,
-  displayHeader,
+  createPixelParrot,
+  createPixelTitle,
   displayStaticHeader
 };
