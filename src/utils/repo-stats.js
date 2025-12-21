@@ -31,11 +31,11 @@ export function getRepoStats() {
     const currentBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
 
     // Get files changed in last commit
-    const filesChanged = execSync('git diff --name-only HEAD~1 HEAD', { encoding: 'utf-8' })
-      .trim()
-      .split('\n')
-      .filter(line => line.length > 0)
-      .length;
+    // const filesChanged = execSync('git diff --name-only HEAD~1 HEAD', { encoding: 'utf-8' })
+    // .trim()
+    // .split('\n')
+    // .filter(line => line.length > 0)
+    // .length;
 
     return {
       totalCommits: parseInt(totalCommits),
@@ -43,7 +43,6 @@ export function getRepoStats() {
       todayCommits,
       lastCommit,
       currentBranch,
-      filesChanged
     };
   } catch (error) {
     return null;
@@ -78,53 +77,7 @@ export function getFunnyMessage() {
 
   return messages[Math.floor(Math.random() * messages.length)];
 }
-
-/**
- * Display repository statistics in a single-line status bar format
- * @param {Object} stats - Repository stats object
- * @param {string} version - App version
- */
-export function displayRepoStats(stats, version = '1.0.0') {
-  if (!stats) return;
-
-  const parts = [];
-
-  // Version
-  parts.push(chalk.cyan(`v${version}`));
-
-
-  // Feedback link (clickable hyperlink using ANSI escape codes)
-  const issuesUrl = 'https://github.com/ddVital/coParrot/issues';
-  const linkText = chalk.cyan.underline(i18n.t('app.feedback.text'));
-  const clickableLink = `\x1b]8;;${issuesUrl}\x1b\\${linkText}\x1b]8;;\x1b\\`;
-  parts.push(chalk.dim(clickableLink));
-
-  // Last commit (hash + message)
-  if (stats.lastCommit) {
-    try {
-      const commitHash = execSync('git log -1 --pretty=%h', { encoding: 'utf-8' }).trim();
-      const commitMsg = stats.lastCommit.split('\n')[0]; // First line only
-      const shortMsg = commitMsg.length > 50 ? commitMsg.substring(0, 50) + '...' : commitMsg;
-      parts.push(chalk.yellow(`#${commitHash}`) + ' ' + chalk.white(shortMsg));
-    } catch (error) {
-      // Skip if error
-    }
-  }
-
-  // Current branch
-  if (stats.currentBranch) {
-    parts.push(chalk.magenta(`on ${stats.currentBranch}`));
-  }
-
-  // Join with · separator
-  const statusLine = parts.join(chalk.dim(' · '));
-
-  console.log(statusLine);
-  console.log();
-}
-
 export default {
   getRepoStats,
   getFunnyMessage,
-  displayRepoStats
 };
