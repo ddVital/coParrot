@@ -34,7 +34,8 @@
       "customCommands": "Custom Commands",
       "unknownCommand": "Unknown command: {cmd}",
       "helpHint": "Type 'help' for available commands",
-      "renderError": "Prompt couldn't be rendered in the current environment"
+      "renderError": "Prompt couldn't be rendered in the current environment",
+      "pressAgainToExit": "Press Ctrl+C again to exit, or type 'exit'"
     },
     "history": {
       "title": "Conversation History",

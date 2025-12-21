@@ -34,7 +34,8 @@
       "customCommands": "Comandos Personalizados",
       "unknownCommand": "Comando desconhecido: /{cmd}",
       "helpHint": "Digite /help para comandos disponíveis",
-      "renderError": "O prompt não pôde ser renderizado no ambiente atual"
+      "renderError": "O prompt não pôde ser renderizado no ambiente atual",
+      "pressAgainToExit": "Pressione Ctrl+C novamente para sair, ou digite 'exit'"
     },
     "history": {
       "title": "Histórico de Conversas",
