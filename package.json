@@ -5,7 +5,7 @@
   "main": "bin/index.js",
   "scripts": {
     "start": "node bin/index.js",
-    "dev": "node bin/index.js",
+    "dev": "node --watch bin/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
@@ -47,6 +47,7 @@
   "dependencies": {
     "@google/genai": "^1.33.0",
     "@inquirer/search": "^4.0.1",
+    "axios": "^1.13.2",
     "chalk": "^5.3.0",
     "cli-highlight": "^2.1.11",
     "commander": "^14.0.2",
