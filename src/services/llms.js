@@ -7,7 +7,7 @@ import StreamingOutput from '../lib/streamer.js';
 import chalk from 'chalk';
 import { buildSystemPrompt } from './prompts.js';
 import i18n from './i18n.js';
-
+import axios from 'axios';
 
 class LLMOrchestrator {
   constructor(options = {}) {
@@ -27,7 +27,8 @@ class LLMOrchestrator {
   _initializeClient() {
     switch (this.options.provider.toLowerCase()) {
       case 'openai':
-        return new OpenAI({ apiKey: this.options.apiKey });
+        console.log("op")
+        // return new OpenAI({ apiKey: this.options.apiKey });
         break;
       case 'claude':
         return new Anthropic({ apiKey: this.options.apiKey });
@@ -35,6 +36,8 @@ class LLMOrchestrator {
       case 'gemini':
         return new GoogleGenAI({ apiKey: this.options.apiKey });
         break;
+      case 'llama':
+        return "local"
       default:
         throw new Error(`Unsupported provider: ${this.options.provider}`);
     }
@@ -44,11 +47,17 @@ class LLMOrchestrator {
     // Chamar o método específico do provider
     switch (this.options.provider.toLowerCase()) {
       case 'openai':
-        return this._callOpenAI(context, type, customInstructions);
+        // setTimeout(() => {
+        return { messages: "feat(commit): adds a message to your console"}
+      // }, 4000);
+      // return this._callOpenAI(context, type, customInstructions);
       case 'claude':
         return this._callClaude(context, type, customInstructions);
       case 'gemini':
         return this._callGemini(context, type, customInstructions);
+      case 'llama':
+        console.log('trying to call llama')
+        return this._callLlama(context, type, customInstructions);
       default:
         throw new Error(`Unsupported provider: ${this.options.provider}`);
     }
@@ -113,9 +122,11 @@ class LLMOrchestrator {
         } else if (result.action === 'retry_with_instructions') {
           currentInstructions = result.customInstructions;
         }
+
+        operation.complete(i18n.t('llm.generationComplete'));
       } catch (error) {
         this.streamer.clearTransient();
-        this.streamer.showError(`Error generating ${type}: ${error.message}`);
+        this.streamer.showError(`Error generating ${type}: ${error}`);
         throw error;
       }
     }
@@ -183,6 +194,30 @@ class LLMOrchestrator {
     return response.text();
   }
 
+  async _callLlama(context, type, customInstructions = null) {
+    const prompt = `${this._buildSystemPrompt(type, customInstructions)}\n\n${JSON.stringify(context)}`;
+    const response = await this._handleLocalLlmCall(prompt)
+
+    return response
+    // const response = await this.client
+  }
+
+  async _handleLocalLlmCall(prompt) {
+    console.log(prompt)
+    try {
+      const response = await axios.post("http://localhost:11434/api/generate", {
+        model: "qwen2.5:3b-instruct", // hard coded before we can implement a more scalable solution
+        prompt: prompt,
+        stream: false
+      })
+
+      return response.data.response;
+    } catch (error) {
+      if (error.code === "ECONNREFUSED") {
+        throw error.code
+      }
+    }
+  }
   /**
    * Builds the system prompt based on the request type
    * @param {string} type - The type of request (commit, branch, pr, review)
@@ -221,14 +256,10 @@ class LLMOrchestrator {
 
   _showLLMResponse(response) {
     // Create visual separator
-    const separator = chalk.gray('═'.repeat(process.stdout.columns || 80));
 
     // Display the response with enhanced formatting
-    console.log('\n' + separator);
     console.log(chalk.cyan.bold('  ' + i18n.t('llm.approvalTitle')));
-    console.log(separator);
     console.log(chalk.white.bold('\n' + response + '\n'));
-    console.log(separator + '\n');
   }
 }
 
