@@ -20,9 +20,8 @@ program
   .description('your git assistant')
   .version(VERSION)
   .option('-s, --single-line', 'Use single-line input instead of editor')
-  .parse(process.argv);
+  .allowUnknownOption();
 
-const options = program.opts();
 const config = loadConfig();
 
 /**
@@ -64,7 +63,7 @@ async function handleCommand(cmd, args, cli) {
       cli.streamer.showGitInfo(status)
       break;
     case 'add':
-      gitAdd(repo, status) 
+      await gitAdd(repo, status) 
       break;
     case 'commit':
       const context = repo.diff([], {staged: true});
@@ -128,8 +127,21 @@ async function handleCommand(cmd, args, cli) {
  * Start the CLI
  */
 async function main() {
+  // Check if a command was passed as argument (e.g., coparrot status)
+  // Do this BEFORE parsing commander to avoid conflicts
+  const rawArgs = process.argv.slice(2);
+  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'demo', 'test'];
+  const commandArg = rawArgs.find(arg => validCommands.includes(arg));
+
+  // Parse commander only for options (not commands)
+  const argsWithoutCommand = commandArg
+    ? rawArgs.filter(arg => !validCommands.includes(arg))
+    : rawArgs;
+
+  program.parse([process.argv[0], process.argv[1], ...argsWithoutCommand]);
+  const options = program.opts();
+
   // Initialize i18n with the configured language
-  // loadConfig already initializes i18n, but this ensures it's always called
   const language = config.language || 'en';
   i18n.initialize(language);
 
@@ -151,6 +163,17 @@ async function main() {
   // Provide git repository class to CLI for TAB completion
   cli.setGitRepository(gitRepository);
 
+  if (commandArg) {
+    // Direct command execution - run command and exit
+    const repo = new gitRepository();
+    const commandIndex = rawArgs.indexOf(commandArg);
+    const commandArgs = rawArgs.slice(commandIndex + 1);
+
+    await handleCommand(commandArg, commandArgs, cli);
+    process.exit(0);
+  }
+
+  // No command provided - enter interactive mode
   if (!config.provider) {
     const isSetupFinished = await setupConfig();
 
