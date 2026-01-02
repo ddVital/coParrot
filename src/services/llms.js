@@ -142,6 +142,15 @@ class LLMOrchestrator {
     });
   }
 
+  /**
+   * Generate commit message directly without UI/approval (for hooks)
+   * @param {*} context - The diff context
+   * @returns {Promise<string>} The generated commit message
+   */
+  async generateCommitMessageDirect(context) {
+    return await this.call(context, 'commit', null);
+  }
+
   async generateBranchName(context, customInstructions = null) {
     return this.generateWithApproval('branch', context, {
       loadingMessage: 'Generating branch name...',
@@ -203,7 +212,6 @@ class LLMOrchestrator {
   }
 
   async _handleLocalLlmCall(prompt) {
-    console.log(prompt)
     try {
       const response = await axios.post("http://localhost:11434/api/generate", {
         model: "qwen2.5:3b-instruct", // hard coded before we can implement a more scalable solution
