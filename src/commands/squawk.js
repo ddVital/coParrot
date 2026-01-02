@@ -2,6 +2,9 @@ import MarkdownRenderer from '../lib/renderer.js';
 import i18n from '../services/i18n.js';
 import chalk from 'chalk';
 import { filterByGlob, matchesAnyPattern } from '../utils/glob.js';
+import TransientProgress from '../utils/transient-progress.js';
+import { select } from '@inquirer/prompts';
+import logUpdate from 'log-update';
 
 /**
  * Calculates commit timestamps distributed across a date range
@@ -257,8 +260,7 @@ export async function squawk(repo, provider, options = {}) {
 
     const stats = await processFilesSequentially(repo, provider, ungroupedChanges, groups, commitTimestamps);
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    showSquawkSummary(stats, elapsed);
+    showSquawkSummary(stats);
   } catch (error) {
     console.error(i18n.t('output.prefixes.error'), error.message);
     throw error;
@@ -339,69 +341,30 @@ function applyGroupPatterns(changes, groupPatterns) {
 }
 
 /**
- * Progress tracker for squawk command
+ * Simple stats tracker for squawk command
  */
-class SquawkProgress {
-  constructor(total) {
-    this.total = total;
+class SquawkStats {
+  constructor() {
     this.completed = 0;
     this.failed = 0;
+    this.skipped = 0;
     this.startTime = Date.now();
   }
 
-  /**
-   * Updates and displays the progress header
-   */
-  updateProgress() {
-    const remaining = this.total - this.completed - this.failed;
-    const percentage = Math.floor((this.completed / this.total) * 100);
-
-    // Calculate estimated time remaining
-    const elapsed = Date.now() - this.startTime;
-    const avgTimePerFile = this.completed > 0 ? elapsed / this.completed : 0;
-    const estimatedRemaining = avgTimePerFile * remaining;
-    const estimatedSeconds = Math.ceil(estimatedRemaining / 1000);
-
-    // Build progress bar
-    const barWidth = 20;
-    const filledWidth = Math.floor((this.completed / this.total) * barWidth);
-    const emptyWidth = barWidth - filledWidth;
-    const progressBar = chalk.green('█'.repeat(filledWidth)) + chalk.dim('░'.repeat(emptyWidth));
-
-    // Build stats line
-    const stats = [
-      chalk.white(`${this.completed}/${this.total} files`),
-      chalk.cyan(`${remaining} remaining`),
-      this.failed > 0 ? chalk.red(`${this.failed} failed`) : null,
-      estimatedSeconds > 0 && remaining > 0 ? chalk.dim(`~${estimatedSeconds}s left`) : null
-    ].filter(Boolean).join(chalk.dim(' | '));
-
-    // Clear and write progress line
-    process.stdout.write('\r\x1b[K');
-    process.stdout.write(`${progressBar} ${chalk.bold(`${percentage}%`)} ${chalk.dim('|')} ${stats}`);
-  }
-
-  /**
-   * Marks a file as completed and updates progress
-   */
-  complete() {
+  incrementCompleted() {
     this.completed++;
-    this.updateProgress();
   }
 
-  /**
-   * Marks a file as failed and updates progress
-   */
-  fail() {
+  incrementFailed() {
     this.failed++;
-    this.updateProgress();
   }
 
-  /**
-   * Finishes progress tracking
-   */
-  finish() {
-    process.stdout.write('\n\n');
+  incrementSkipped() {
+    this.skipped++;
+  }
+
+  getElapsed() {
+    return ((Date.now() - this.startTime) / 1000).toFixed(1);
   }
 }
 
@@ -426,43 +389,26 @@ function showSquawkTitle() {
  * @returns {Promise<Object>} Statistics about commits
  */
 async function processFilesSequentially(repo, provider, changes, groups, timestamps = null) {
-  const stats = {
-    groupCommits: 0,
-    groupFiles: 0,
-    individualCommits: 0,
-    totalCommits: 0,
-    failed: 0
-  };
+  const stats = new SquawkStats();
+  const transientProgress = new TransientProgress();
 
-  const totalItems = groups.length + changes.length;
-  const progress = new SquawkProgress(totalItems);
-
-  // Initialize progress display
-  progress.updateProgress();
-
-  const groupStats = await processGroups(repo, provider, groups, changes.length, timestamps, progress);
-  stats.groupCommits = groupStats.commits;
-  stats.groupFiles = groupStats.files;
-  stats.failed += groupStats.failed;
+  const groupStats = await processGroups(repo, provider, groups, changes.length, timestamps, transientProgress, stats);
 
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i];
     const timestamp = timestamps ? timestamps[groups.length + i] : null;
 
-    try {
-      await processSingleFile(repo, provider, change, timestamp, progress);
-      stats.individualCommits++;
-    } catch (error) {
-      progress.fail();
-      logFileError(change.value, error.message);
+    const result = await processSingleFile(repo, provider, change, timestamp, transientProgress);
+
+    if (result === 'committed') {
+      stats.incrementCompleted();
+    } else if (result === 'failed') {
+      stats.incrementFailed();
+    } else if (result === 'skipped') {
+      stats.incrementSkipped();
     }
   }
 
-  // Finish progress display
-  progress.finish();
-
-  stats.totalCommits = stats.groupCommits + stats.individualCommits;
-  stats.failed = progress.failed;
   return stats;
 }
 
@@ -473,12 +419,11 @@ async function processFilesSequentially(repo, provider, changes, groups, timesta
  * @param {Array<Object>} groups - Array of grouped files
  * @param {number} totalIndividual - Number of individual files
  * @param {Array<Date>} timestamps - Array of timestamps for each commit (optional)
- * @param {SquawkProgress} progress - Progress tracker instance
+ * @param {TransientProgress} transientProgress - Transient progress instance
+ * @param {SquawkStats} stats - Stats tracker instance
  * @returns {Promise<Object>} Statistics about group commits
  */
-async function processGroups(repo, provider, groups, totalIndividual, timestamps = null, progress = null) {
-  const stats = { commits: 0, files: 0, failed: 0 };
-
+async function processGroups(repo, provider, groups, totalIndividual, timestamps = null, transientProgress = null, stats = null) {
   for (let j = 0; j < groups.length; j++) {
     const group = groups[j];
     const timestamp = timestamps ? timestamps[j] : null;
@@ -486,22 +431,82 @@ async function processGroups(repo, provider, groups, totalIndividual, timestamps
     // Skip empty groups
     if (group.files.length === 0) continue;
 
-    try {
-      await stageFiles(repo, group.files);
-      const commitMessage = await generateCommitMessage(repo, provider);
-      await commitFile(repo, group.files, commitMessage, timestamp);
+    const result = await processGroupCommit(repo, provider, group, timestamp, transientProgress);
 
-      stats.commits++;
-      stats.files += group.files.length;
-      if (progress) progress.complete();
-    } catch (error) {
-      stats.failed++;
-      if (progress) progress.fail();
-      logFileError(group.pattern, error.message);
+    if (result === 'committed') {
+      stats.incrementCompleted();
+    } else if (result === 'failed') {
+      stats.incrementFailed();
+    } else if (result === 'skipped') {
+      stats.incrementSkipped();
     }
   }
 
   return stats;
+}
+
+/**
+ * Processes a group commit with new UI flow
+ * @param {Object} repo - Git repository instance
+ * @param {Object} provider - LLM provider instance
+ * @param {Object} group - Group object containing files
+ * @param {Date} timestamp - Optional timestamp for the commit
+ * @param {TransientProgress} transientProgress - Transient progress instance
+ * @returns {Promise<string>} Result status: 'committed', 'skipped', or 'failed'
+ */
+async function processGroupCommit(repo, provider, group, timestamp = null, transientProgress = null) {
+  try {
+    // Stage the files
+    await stageFiles(repo, group.files);
+
+    // Show transient "Generating message..." indicator
+    if (transientProgress) {
+      transientProgress.showTransient('Generating message...', 'generating');
+    }
+
+    // Generate commit message
+    const commitMessage = await generateCommitMessage(repo, provider);
+
+    // Clear the transient message
+    if (transientProgress) {
+      transientProgress.clearTransient();
+    }
+
+    // Display the generated message with ">" prefix (using regular console.log before prompt)
+    console.log();
+    console.log(chalk.rgb(34, 197, 94)('> ') + chalk.white(commitMessage));
+    console.log();
+
+    // Show interactive approval prompt
+    const action = await select({
+      message: 'Approve this message?',
+      choices: [
+        { name: 'Yes, commit', value: 'approve' },
+        { name: 'Skip this commit', value: 'skip' },
+        { name: 'Retry generation', value: 'retry' }
+      ]
+    });
+
+    // Clear the terminal lines for the message display after user responds
+    // (inquirer already clears its prompt, so we just need to clear what we wrote)
+    process.stdout.write('\x1b[3A\x1b[0J'); // Move up 3 lines and clear from cursor down
+
+    if (action === 'approve') {
+      await commitFile(repo, group.files, commitMessage, timestamp);
+      return 'committed';
+    } else if (action === 'skip') {
+      return 'skipped';
+    } else if (action === 'retry') {
+      // Recursive retry
+      return await processGroupCommit(repo, provider, group, timestamp, transientProgress);
+    }
+  } catch (error) {
+    if (transientProgress) {
+      transientProgress.clearTransient();
+    }
+    logFileError(group.pattern, error.message);
+    return 'failed';
+  }
 }
 
 /**
@@ -510,14 +515,62 @@ async function processGroups(repo, provider, groups, totalIndividual, timestamps
  * @param {Object} provider - LLM provider instance
  * @param {Object} change - Change object containing file info
  * @param {Date} timestamp - Optional timestamp for the commit
- * @param {SquawkProgress} progress - Progress tracker instance
+ * @param {TransientProgress} transientProgress - Transient progress instance
+ * @returns {Promise<string>} Result status: 'committed', 'skipped', or 'failed'
  */
-async function processSingleFile(repo, provider, change, timestamp = null, progress = null) {
-  await stageFiles(repo, [change.value]);
-  const commitMessage = await generateCommitMessage(repo, provider);
-  await commitFile(repo, [change.value], commitMessage, timestamp);
+async function processSingleFile(repo, provider, change, timestamp = null, transientProgress = null) {
+  try {
+    // Stage the file
+    await stageFiles(repo, [change.value]);
 
-  if (progress) progress.complete();
+    // Show transient "Generating message..." indicator
+    if (transientProgress) {
+      transientProgress.showTransient('Generating message...', 'generating');
+    }
+
+    // Generate commit message
+    const commitMessage = await generateCommitMessage(repo, provider);
+
+    // Clear the transient message
+    if (transientProgress) {
+      transientProgress.clearTransient();
+    }
+
+    // Display the generated message with ">" prefix (using regular console.log before prompt)
+    console.log();
+    console.log(chalk.rgb(34, 197, 94)('> ') + chalk.white(commitMessage));
+    console.log();
+
+    // Show interactive approval prompt
+    const action = await select({
+      message: 'Approve this message?',
+      choices: [
+        { name: 'Yes, commit', value: 'approve' },
+        { name: 'Skip this commit', value: 'skip' },
+        { name: 'Retry generation', value: 'retry' }
+      ]
+    });
+
+    // Clear the terminal lines for the message display after user responds
+    // (inquirer already clears its prompt, so we just need to clear what we wrote)
+    process.stdout.write('\x1b[3A\x1b[0J'); // Move up 3 lines and clear from cursor down
+
+    if (action === 'approve') {
+      await commitFile(repo, [change.value], commitMessage, timestamp);
+      return 'committed';
+    } else if (action === 'skip') {
+      return 'skipped';
+    } else if (action === 'retry') {
+      // Recursive retry
+      return await processSingleFile(repo, provider, change, timestamp, transientProgress);
+    }
+  } catch (error) {
+    if (transientProgress) {
+      transientProgress.clearTransient();
+    }
+    logFileError(change.value, error.message);
+    return 'failed';
+  }
 }
 
 /**
@@ -536,7 +589,7 @@ function logFileError(filename, error) {
  */
 async function stageFiles(repo, files) {
   await repo.add(files);
-  // console.log('add')
+  //console.log('add')
 }
 
 /**
@@ -569,53 +622,36 @@ async function commitFile(repo, files, message, timestamp = null) {
 
 /**
  * Displays a formatted summary with stats and timing
- * @param {Object} stats - Statistics about commits
- * @param {string} elapsed - Elapsed time in seconds
+ * @param {SquawkStats} stats - Statistics tracker instance
  */
-function showSquawkSummary(stats, elapsed) {
-  const separator = '━'.repeat(Math.min(process.stdout.columns - 2 || 78, 80));
-  console.log(chalk.dim(separator));
+function showSquawkSummary(stats) {
+  console.log();
+  console.log(chalk.cyan.bold('Summary'));
   console.log();
 
-  const totalFiles = stats.groupFiles + stats.individualCommits;
-  const summaryText = i18n.t('git.squawk.summaryComplete', {
-    count: stats.totalCommits,
-    files: totalFiles
-  });
-  console.log(chalk.green.bold(`✨ ${summaryText}`));
+  const total = stats.completed + stats.failed + stats.skipped;
 
-  if (stats.groupCommits > 0) {
-    const groupText = i18n.t('git.squawk.groupCommits', {
-      count: stats.groupCommits,
-      files: stats.groupFiles
-    });
-    console.log(chalk.dim(`   • ${groupText}`));
+  if (stats.completed > 0) {
+    console.log(chalk.green(`  ✓ ${stats.completed} committed`));
   }
-  if (stats.individualCommits > 0) {
-    const individualText = i18n.t('git.squawk.individualCommits', {
-      count: stats.individualCommits
-    });
-    console.log(chalk.dim(`   • ${individualText}`));
+  if (stats.skipped > 0) {
+    console.log(chalk.yellow(`  ⊘ ${stats.skipped} skipped`));
   }
   if (stats.failed > 0) {
-    const failedText = i18n.t('git.squawk.failedCommits', {
-      count: stats.failed
-    });
-    console.log(chalk.red(`   • ${failedText}`));
+    console.log(chalk.red(`  ✗ ${stats.failed} failed`));
 
     // Show error details
     if (fileErrors.length > 0) {
       console.log();
-      console.log(chalk.red.bold('   Failed files:'));
       fileErrors.forEach(({ filename, error }) => {
-        console.log(chalk.red(`     ✗ ${filename}`));
-        console.log(chalk.dim(`       ${error}`));
+        console.log(chalk.red(`    ${filename}: ${error}`));
       });
     }
   }
 
-  const timeText = i18n.t('git.squawk.completedIn', { time: elapsed });
-  console.log(chalk.dim(`\n⏱️  ${timeText}`));
+  const elapsed = stats.getElapsed();
+  console.log();
+  console.log(chalk.dim(`  Completed in ${elapsed}s`));
   console.log();
 
   // Clear errors for next run
