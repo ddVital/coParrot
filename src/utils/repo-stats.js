@@ -55,7 +55,6 @@ export function getRepoStats() {
  */
 export function getFunnyMessage() {
   const messages = [
-    "🦜 Ready to squawk some commits!",
     "🎨 May your commits be atomic and your merges conflict-free!",
     "🚀 Houston, we're ready for git-off!",
     "🔥 Let's turn coffee into commits!",
@@ -70,7 +69,6 @@ export function getFunnyMessage() {
     "🌈 Every commit is a step towards a better codebase!",
     "🎲 May the odds be ever in your favor... and your tests passing!",
     "🎺 Jazz hands ready for some version control!",
-    "🌮 Squawk responsibly!",
     "🦸 Not all heroes wear capes, some write good commit messages!",
     "🎨 Painting the town red... I mean, green! All tests passing!"
   ];
