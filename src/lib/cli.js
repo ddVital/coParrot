@@ -90,52 +90,6 @@ class CLI {
   }
 
   /**
-   * Build enhanced prompt with context (directory, branch, model)
-   */
-  buildEnhancedPrompt() {
-    // Get current directory (show relative to home if possible)
-    const cwd = process.cwd();
-    const home = process.env.HOME || process.env.USERPROFILE;
-    const displayPath = home ? cwd.replace(home, '~') : cwd;
-
-    // Try to get git branch with dirty indicator
-    let branchInfo = '';
-    let dirtyIndicator = '';
-    try {
-      if (this._gitRepository) {
-        const repo = new this._gitRepository();
-        const branch = repo.getCurrentBranch().trim();
-        if (branch) {
-          // Check if working directory has changes
-          const isDirty = repo.hasUncommittedChanges();
-          dirtyIndicator = isDirty ? chalk.rgb(239, 68, 68)('*') : '';
-          branchInfo = chalk.rgb(234, 179, 8)(`[⎇ ${branch}${dirtyIndicator}]`);
-        }
-      }
-    } catch {
-      // Not in a git repo or error getting branch
-    }
-
-    // Build separator
-    const width = process.stdout.columns || 80;
-    const separator = chalk.rgb(100, 116, 139)('─'.repeat(width));
-
-    // Build context line (directory + branch + helpful hints)
-    const contextLine = ` ${chalk.dim(displayPath)}${branchInfo}`;
-
-    // Build help hint line (git-focused)
-    const hints = [
-      chalk.cyan('status'),
-      chalk.cyan('commit'),
-      chalk.cyan('add'),
-      chalk.cyan('help')
-    ].join(chalk.dim(' · '));
-    const helpLine = ` ${separator}\n ${chalk.dim('Commands:')} ${hints}`;
-
-    return `${contextLine}\n${helpLine}\n${separator}\n`;
-  }
-
-  /**
    * Get user input with TAB completion support
    */
   async getUserInput() {
@@ -201,6 +155,7 @@ class CLI {
       'add',
       'commit',
       'squawk',
+      'hook',
       'help',
       'clear',
       'history',
@@ -288,27 +243,6 @@ class CLI {
    */
   setGitRepository(gitRepoClass) {
     this._gitRepository = gitRepoClass;
-  }
-
-  /**
-   * Process a user message
-   */
-  async processMessage(message) {
-    // Add to history
-    this.conversationHistory.push({
-      role: 'user',
-      content: message
-    });
-
-    console.log();
-    this.streamer.showSeparator();
-
-    // Show that we're thinking
-    this.streamer.startThinking('Processing your request...');
-
-    this.streamer.stopThinking();
-    console.log();
-    this.streamer.showSeparator();
   }
 
   /**
