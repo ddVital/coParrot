@@ -12,31 +12,11 @@ import i18n from '../services/i18n.js';
  */
 export async function gitCommit(repo, message) {
   try {
-    await repo.commit(message);
-    await showCommitedMessage(repo);
+    const output = await repo.commit(message);
+    console.log(output);
   } catch (error) {
     console.error(i18n.t('output.prefixes.error'), error.message);
     throw error;
   }
 }
 
-/**
- * Displays a formatted commit success message
- * @private
- * @param {Object} repo - Git repository instance
- * @returns {Promise<void>}
- */
-async function showCommitedMessage(repo) {
-  const renderer = new MarkdownRenderer({
-    width: process.stdout.columns || 80
-  });
-
-  const lastCommit = await repo.log({ limit: 1 });
-
-  const markdown = `## ${lastCommit}
-
-Changes **committed** successfully!`;
-
-  const output = renderer.render(markdown);
-  process.stdout.write(output);
-}
