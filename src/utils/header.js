@@ -61,26 +61,27 @@ export async function animateHeader(
 }
 
 /**
- * Pixel-art parrot
+ * Pixel-art parrot (10x10)
  */
 export function createPixelParrot() {
-  const parrot = [
-    '       ▄██████▄         ',
-    '   ▄█▀▀▀▀▀██▀▀▀▀▀█▄     ',
-    '  ▐█      ▐▌      █▌    ',
-    '  ▐█▄    ▄██▄    ▄█▌    ',
-    ' ▄▄███████▀▀███████▄▄   ',
-    '████     ▄  ▄     ████  ',
-    '████     █  █     ████  ',
-    '▀███▄            ▄███▀  ',
-    '   ▀▀████████████▀▀     '
-  ];
+  const b = chalk.rgb(0, 0, 0);       // black
+  const b1 = chalk.rgb(16, 94, 162);   // dark blue
+  const b2 = chalk.rgb(26, 113, 188);  // medium blue
+  const y = chalk.rgb(206, 213, 34);   // yellow
+  const g = chalk.rgb(91, 91, 91);    // gray
 
-  return parrot.map((line, i) =>
-    i < 2
-      ? chalk.rgb(253, 224, 71)(line) // yellow
-      : chalk.rgb(22, 163, 74)(line)  // green
-  );
+  return [
+    '   ' + b('████') + '  ',
+    '   ' + b('█') + b1('█') + y('█') + b2('█') + b('█') + ' ',
+    '  ' + b('█') + b1('█') + y('█') + b('█') + y('█') + g('█') + b('█'),
+    '  ' + b('█') + b2('███') + b('█') + g('██') + b('█'),
+    ' ' + b('█') + b1('█') + b2('███') + b('█') + g('█') + b('█'),
+    ' ' + b('█') + b1('█') + b2('███') + y('█') + b('██'),
+    b('█') + b1('█') + b2('███') + b1('█') + b('█') + ' ',
+    b('█') + b2('██') + b('█') + b1('███') + b('█'),
+    ' ' + b('██') + b1('█████') + b('█'),
+    b('███') + g('█') + ' ' + g('█') + ' '
+  ];
 }
 
 /**
@@ -118,7 +119,7 @@ export async function displayStaticHeader(
   const parrotLines = createPixelParrot();
   const repoStats = await getRepoStats();
 
-  const metaLine = `${ellipsis(repoStats.lastCommit)} · on ${repoStats.currentBranch}`;
+  const metaLine = `${ellipsis(repoStats?.lastCommit)} · on ${repoStats?.currentBranch}`;
 
   const boxWidth = 100;
   const contentWidth = boxWidth - 4;
