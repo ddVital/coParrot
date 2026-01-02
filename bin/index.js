@@ -10,6 +10,7 @@ import { gitAdd } from '../src/commands/add.js'
 import { gitCommit } from '../src/commands/commit.js'
 import { gitCheckout } from '../src/commands/checkout.js'
 import { squawk } from '../src/commands/squawk.js'
+import { hookCommand } from '../src/commands/hook.js'
 import i18n from '../src/services/i18n.js';
 import { parseFlag } from '../src/utils/args-parser.js';
 import { VERSION } from '../src/utils/index.js';
@@ -20,7 +21,8 @@ program
   .description('your git assistant')
   .version(VERSION)
   .option('-s, --single-line', 'Use single-line input instead of editor')
-  .allowUnknownOption();
+  .allowUnknownOption()
+  .allowExcessArguments(true);
 
 const config = loadConfig();
 
@@ -74,12 +76,33 @@ async function handleCommand(cmd, args, cli) {
         return
       }
 
-      const commitMessage = await provider.generateCommitMessage(context);
-      //const commitMessage = "test"
+      let commitMessage;
 
-      if (commitMessage) {
-        gitCommit(repo, commitMessage)
+      // If --hook flag is passed, use direct generation (no UI/approval)
+      if (args.includes('--hook')) {
+        commitMessage = await provider.generateCommitMessageDirect(context);
+        // Output only the message for git hook
+        console.log(commitMessage);
+      } else {
+        commitMessage = await provider.generateCommitMessage(context);
+        if (commitMessage) {
+          // Clear the transient progress and approval prompt messages
+          cli.streamer.clearTransient();
+
+          // Calculate lines to clear:
+          // - "AI Generated Message:" title (1 line)
+          // - The commit message itself (count newlines + empty lines)
+          // - The inquirer prompt (1 line)
+          const messageLines = commitMessage.split('\n').length;
+          const totalLinesToClear = 1 + messageLines + 1 + 1; // title + message + empty line + prompt
+
+          // Move cursor up and clear from cursor down
+          process.stdout.write(`\x1b[${totalLinesToClear}A\x1b[0J`);
+
+          gitCommit(repo, commitMessage)
+        }
       }
+
       break;
     case 'squawk':
       const ignoredFiles = parseFlag(args, '--ignore');
@@ -117,6 +140,9 @@ async function handleCommand(cmd, args, cli) {
       console.log();
       await setupConfig();
       break;
+    case 'hook':
+      await hookCommand(args, cli);
+      break;
     default:
       cli.streamer.showError(`Unknown command: ${cmd}`);
       cli.streamer.showInfo('Type "help" to see available commands');
@@ -130,7 +156,7 @@ async function main() {
   // Check if a command was passed as argument (e.g., coparrot status)
   // Do this BEFORE parsing commander to avoid conflicts
   const rawArgs = process.argv.slice(2);
-  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'demo', 'test'];
+  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'demo', 'test', 'hook'];
   const commandArg = rawArgs.find(arg => validCommands.includes(arg));
 
   // Parse commander only for options (not commands)
@@ -155,6 +181,7 @@ async function main() {
       'add': 'Interactively stage files for commit',
       'commit': 'Commit staged files with AI-generated message',
       'squawk': 'Commit each file individually with realistic timestamps (--from YYYY-MM-DD[THH:MM:SS], --to, --exclude-weekends)',
+      'hook': 'Manage git hooks (install/uninstall global commit message hook)',
       'setup': 'Reconfigure coParrot settings (provider, API key, conventions, etc.)'
     },
     config: config
