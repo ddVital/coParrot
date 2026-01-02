@@ -45,6 +45,39 @@
     }
   },
   "git": {
+    "hook": {
+      "unknownSubcommand": "Unknown hook subcommand: {subcommand}",
+      "usage": "Usage: hook install | hook uninstall",
+      "install": {
+        "success": "Git hook installed successfully! ✓",
+        "failed": "Failed to install hook: {error}",
+        "configured": "The following has been configured:",
+        "hookInstalled": "prepare-commit-msg hook (auto-generates commit messages)",
+        "templateDir": "git global template directory",
+        "aliasesCreated": "Git aliases created:",
+        "squawkAlias": "Commit files individually with timestamps",
+        "statusAlias": "Show repository status",
+        "addAlias": "Interactively stage files",
+        "commitAlias": "Commit with AI-generated message",
+        "setupAlias": "Configure CoParrot settings",
+        "applyToExisting": "To apply the hook to existing repos, run:",
+        "gitInitHint": "git init",
+        "gitInitHintDesc": "(in each existing repository)",
+        "useDirectly": "To use directly without git:",
+        "directExample": "coparrot status",
+        "directExampleOr": "or",
+        "directExampleAlt": "cpt status"
+      },
+      "uninstall": {
+        "success": "Git hook uninstalled successfully! ✓",
+        "failed": "Failed to uninstall hook: {error}",
+        "removed": "The following has been removed:",
+        "hookRemoved": "prepare-commit-msg hook",
+        "aliasesRemoved": "git aliases (squawk, cstatus, cadd, ccommit, csetup)",
+        "templateDirNote": "Note: The .git-templates directory has been left intact",
+        "configNote": "Note: git init.templateDir config remains (you can remove it manually)"
+      }
+    },
     "add": {
       "selectFiles": "Choose files to stage for commit (Space to select, Enter to confirm)",
       "noFilesSelected": "No files were staged. Your working directory remains unchanged.",
