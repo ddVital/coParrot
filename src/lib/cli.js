@@ -126,7 +126,7 @@ class CLI {
         }
       });
 
-      // Create colorful prompt with parrot colors
+      // Create colorful prompt
       const promptText = chalk.rgb(34, 197, 94).bold(this.options.prompt);
 
       rl.question(promptText, (answer) => {
