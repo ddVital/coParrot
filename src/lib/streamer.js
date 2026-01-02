@@ -101,7 +101,6 @@ class StreamingOutput {
   showError(error) {
     this.stopThinking();
     console.error('\n' + chalk.rgb(239, 68, 68).bold('✗ ' + i18n.t('output.prefixes.error') + ' ') + chalk.white(error.message || error));
-    console.error(chalk.rgb(239, 68, 68)('▓'.repeat(process.stdout.columns || 80)));
   }
 
   /**
@@ -174,14 +173,6 @@ class StreamingOutput {
    */
   clear() {
     console.clear();
-  }
-
-  /**
-   * Display a pixel-art style border
-   */
-  showPixelBorder() {
-    const width = process.stdout.columns || 80;
-    console.log(chalk.rgb(34, 197, 94)('▓'.repeat(width)));
   }
 
   /**
