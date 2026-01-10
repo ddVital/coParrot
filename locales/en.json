@@ -261,9 +261,9 @@
   "llm": {
     "approvalTitle": "AI Generated Message:",
     "approvalOptions": {
-      "approve": "✓ Approve and use this response",
-      "retry": "↻ Retry (generate a new response)",
-      "retryWithInstructions": "✎ Retry with custom instructions"
+      "approve": "Approve",
+      "retry": "Retry",
+      "retryWithInstructions": "Retry with instructions"
     },
     "approvalPrompt": "What would you like to do?",
     "customInstructionsPrompt": "Enter your custom instructions:",
