@@ -8,11 +8,13 @@ import chalk from 'chalk';
 import { buildSystemPrompt } from './prompts.js';
 import i18n from './i18n.js';
 import axios from 'axios';
+import logUpdate from "log-update";
 
 class LLMOrchestrator {
   constructor(options = {}) {
     this.options = {
       provider: options.provider || 'openAI',
+      ollamaUrl: options.ollamaUrl, 
       apiKey: options.apiKey,
       model: options.model,
       instructions: options.instructions || {},
@@ -36,7 +38,7 @@ class LLMOrchestrator {
       case 'gemini':
         return new GoogleGenAI({ apiKey: this.options.apiKey });
         break;
-      case 'llama':
+      case 'ollama':
         return "local"
       default:
         throw new Error(`Unsupported provider: ${this.options.provider}`);
@@ -47,16 +49,12 @@ class LLMOrchestrator {
     // Chamar o método específico do provider
     switch (this.options.provider.toLowerCase()) {
       case 'openai':
-        // setTimeout(() => {
-        return { messages: "feat(commit): adds a message to your console"}
-      // }, 4000);
-      // return this._callOpenAI(context, type, customInstructions);
+        return this._callOpenAI(context, type, customInstructions);
       case 'claude':
         return this._callClaude(context, type, customInstructions);
       case 'gemini':
         return this._callGemini(context, type, customInstructions);
-      case 'llama':
-        console.log('trying to call llama')
+      case 'ollama':
         return this._callLlama(context, type, customInstructions);
       default:
         throw new Error(`Unsupported provider: ${this.options.provider}`);
@@ -65,7 +63,7 @@ class LLMOrchestrator {
 
   async approveLLMResponse(response) {
     this._showLLMResponse(response);
-
+ 
     // Present options to the user
     const action = await select({
       message: i18n.t('llm.approvalPrompt'),
@@ -74,11 +72,15 @@ class LLMOrchestrator {
         { name: i18n.t('llm.approvalOptions.retry'), value: 'retry' },
         { name: i18n.t('llm.approvalOptions.retryWithInstructions'), value: 'retry_with_instructions' }
       ]
+    }, {
+      clearPromptOnDone: true
     });
 
     if (action === 'retry_with_instructions') {
       const customInstructions = await input({
         message: i18n.t('llm.customInstructionsPrompt')
+      }, {
+        clearPromptOnDone: true
       });
       return { action, customInstructions };
     }
@@ -98,17 +100,9 @@ class LLMOrchestrator {
 
     while (!approved) {
       try {
-        // Use shimmer effect for generation
-        const operation = this.streamer.startGeneratingOperation(loadingMessage);
-
-        // Add substeps to show what's happening
-        operation.substep(`Processing ${type} request`);
-        operation.substep(`Calling ${this.options.provider} API`);
-
+        this.streamer.startThinking(loadingMessage);
         response = await this.call(context, type, currentInstructions);
-
-        // Mark as complete (will auto-clear after brief moment)
-        operation.complete(i18n.t('llm.generationComplete'));
+        this.streamer.stopThinking();
 
         const result = this.options.skipApproval
           ? { action: 'approve' }
@@ -122,11 +116,7 @@ class LLMOrchestrator {
         } else if (result.action === 'retry_with_instructions') {
           currentInstructions = result.customInstructions;
         }
-
-        operation.complete(i18n.t('llm.generationComplete'));
       } catch (error) {
-        this.streamer.clearTransient();
-        this.streamer.showError(`Error generating ${type}: ${error}`);
         throw error;
       }
     }
@@ -137,6 +127,13 @@ class LLMOrchestrator {
   // Then usage becomes simple:
   async generateCommitMessage(context, customInstructions = null) {
     return this.generateWithApproval('commit', context, {
+      loadingMessage: 'Generating commit message...',
+      customInstructions
+    });
+  }
+
+  async generatePrMessage(context, customInstructions = null) {
+    return this.generateWithApproval('pr', context, {
       loadingMessage: 'Generating commit message...',
       customInstructions
     });
@@ -159,16 +156,21 @@ class LLMOrchestrator {
   }
 
   async _callOpenAI(context, type, customInstructions = null) {
+    // For branch type, extract description from context object
+    const userContent = type === 'branch' && context?.description
+      ? context.description
+      : JSON.stringify(context);
+
     const response = await this.client.chat.completions.create({
       model: this.options.model || 'gpt-4',
       messages: [
         {
           role: 'system',
-          content: this._buildSystemPrompt(type, customInstructions)
+          content: this._buildSystemPrompt(type, customInstructions, context)
         },
         {
           role: 'user',
-          content: JSON.stringify(context)
+          content: userContent
         }
       ]
     });
@@ -177,14 +179,19 @@ class LLMOrchestrator {
   }
 
   async _callClaude(context, type, customInstructions = null) {
+    // For branch type, extract description from context object
+    const userContent = type === 'branch' && context?.description
+      ? context.description
+      : JSON.stringify(context);
+
     const response = await this.client.messages.create({
       model: this.options.model || 'claude-3-5-sonnet-20241022',
       max_tokens: 1024,
-      system: this._buildSystemPrompt(type, customInstructions),
+      system: this._buildSystemPrompt(type, customInstructions, context),
       messages: [
         {
           role: 'user',
-          content: JSON.stringify(context)
+          content: userContent
         }
       ]
     });
@@ -193,7 +200,12 @@ class LLMOrchestrator {
   }
 
   async _callGemini(context, type, customInstructions = null) {
-    const prompt = `${this._buildSystemPrompt(type, customInstructions)}\n\n${JSON.stringify(context)}`;
+    // For branch type, extract description from context object
+    const userContent = type === 'branch' && context?.description
+      ? context.description
+      : JSON.stringify(context);
+
+    const prompt = `${this._buildSystemPrompt(type, customInstructions, context)}\n\n${userContent}`;
 
     const response = await this.client.models.generateContent({
       model: this.options.model || 'gemini-2.5-flash',
@@ -204,7 +216,12 @@ class LLMOrchestrator {
   }
 
   async _callLlama(context, type, customInstructions = null) {
-    const prompt = `${this._buildSystemPrompt(type, customInstructions)}\n\n${JSON.stringify(context)}`;
+    // For branch type, extract description from context object
+    const userContent = type === 'branch' && context?.description
+      ? context.description
+      : JSON.stringify(context);
+
+    const prompt = `${this._buildSystemPrompt(type, customInstructions, context)}\n\n${userContent}`;
     const response = await this._handleLocalLlmCall(prompt)
 
     return response
@@ -212,9 +229,11 @@ class LLMOrchestrator {
   }
 
   async _handleLocalLlmCall(prompt) {
+    console.log(prompt)
+
     try {
-      const response = await axios.post("http://localhost:11434/api/generate", {
-        model: "qwen2.5:3b-instruct", // hard coded before we can implement a more scalable solution
+      const response = await axios.post(`${this.options.ollamaUrl}/api/generate`, {
+        model: this.options.model, // hard coded before we can implement a more scalable solution
         prompt: prompt,
         stream: false
       })
@@ -230,26 +249,28 @@ class LLMOrchestrator {
    * Builds the system prompt based on the request type
    * @param {string} type - The type of request (commit, branch, pr, review)
    * @param {string|null} customInstructions - Additional custom instructions
+   * @param {Object} context - The context object (may contain recentBranches for branch type)
    * @returns {string} The complete system prompt
    */
-  _buildSystemPrompt(type, customInstructions = null) {
+  _buildSystemPrompt(type, customInstructions = null, context = null) {
     const baseInstructions = this.options.instructions.customInstructions || '';
 
     // Determine convention/style based on type
-    let convention, style;
+    let convention, style, recentBranches, verbose;
 
     switch (type) {
       case 'commit':
         convention = this.options.instructions.commitConvention?.type || 'conventional';
+        verbose = this.options.instructions.commitConvention?.verboseCommits || false;
         break;
       case 'branch':
-        convention = this.options.instructions.branchNaming?.type || 'gitflow';
+        // Use commit convention for branches, default to gitflow if not set
+        convention = this.options.instructions.commitConvention?.type || 'gitflow';
+        // Extract recent branches from context if available
+        recentBranches = context?.recentBranches || [];
         break;
       case 'pr':
         style = this.options.instructions.prMessageStyle || 'detailed';
-        break;
-      case 'review':
-        style = this.options.instructions.codeReviewStyle || 'detailed';
         break;
     }
 
@@ -258,16 +279,14 @@ class LLMOrchestrator {
       convention,
       style,
       baseInstructions,
-      customInstructions
+      customInstructions,
+      recentBranches,
+      verbose
     });
   }
 
   _showLLMResponse(response) {
-    // Create visual separator
-
-    // Display the response with enhanced formatting
-    console.log(chalk.cyan.bold('  ' + i18n.t('llm.approvalTitle')));
-    console.log(chalk.white.bold('\n' + response + '\n'));
+    console.log('\n' + chalk.grey('## ') + chalk.white(response) + '\n');
   }
 }
 

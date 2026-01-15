@@ -155,6 +155,7 @@ class CLI {
       'add',
       'commit',
       'squawk',
+      'pr',
       'hook',
       'help',
       'clear',

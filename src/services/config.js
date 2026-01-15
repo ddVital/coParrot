@@ -5,34 +5,87 @@ import chalk from 'chalk';
 import { setup } from '../commands/setup.js';
 import i18n from './i18n.js';
 
+// Constants
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'coparrot');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+const CONFIG_ENCODING = 'utf-8';
+const JSON_INDENT = 2;
+const SETUP_DELAY_MS = 1500;
+
+const DEFAULT_LANGUAGE = 'en';
+const DEFAULT_PR_STYLE = 'detailed';
+const DEFAULT_CONVENTION_TYPE = 'conventional';
+
+const PROVIDER = {
+  OLLAMA: 'ollama'
+};
 
 /**
  * Default configuration structure
  */
 const DEFAULT_CONFIG = {
-  language: 'en',
+  language: DEFAULT_LANGUAGE,
   provider: null,
   model: null,
   apiKey: null,
+  ollamaUrl: null,
   commitConvention: {
-    type: 'conventional',
-    format: null
+    type: DEFAULT_CONVENTION_TYPE,
+    format: null,
+    verboseCommits: false
   },
-  branchNaming: {
-    type: 'gitflow',
-    format: null
-  },
-  followProjectPatterns: {
-    enabled: true,
-    analyzeDepth: 25,
-    analyzeBranches: true,
-    analyzeCommits: true
-  },
-  codeReviewStyle: 'detailed',
-  prMessageStyle: 'detailed',
+  prTemplatePath: null,
+  prMessageStyle: DEFAULT_PR_STYLE,
   customInstructions: ''
+};
+
+// File system helpers
+const ensureConfigDir = () => {
+  if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  }
+};
+
+const configExists = () => fs.existsSync(CONFIG_PATH);
+
+const readConfigFile = () => {
+  const data = fs.readFileSync(CONFIG_PATH, CONFIG_ENCODING);
+  return JSON.parse(data);
+};
+
+const writeConfigFile = (config) => {
+  ensureConfigDir();
+  const data = JSON.stringify(config, null, JSON_INDENT);
+  fs.writeFileSync(CONFIG_PATH, data, CONFIG_ENCODING);
+};
+
+// Validation helpers
+const hasRequiredFields = (config) => {
+  return config?.provider && config?.language;
+};
+
+const hasValidCredentials = (config) => {
+  if (config.provider === PROVIDER.OLLAMA) {
+    return !!config.ollamaUrl;
+  }
+  return !!config.apiKey;
+};
+
+// Error handling
+const showConfigError = (action, error) => {
+  const errorKey = `config.errors.${action}Error`;
+  const message = i18n.t(errorKey, { error: error.message });
+  console.error(chalk.red('⚠ ') + message);
+};
+
+const showSetupSuccess = (configPath) => {
+  console.log();
+  console.log(chalk.green('✓ ') + i18n.t('setup.configSaved', {
+    path: chalk.dim(configPath)
+  }));
+  console.log();
+  console.log(chalk.cyan('  ' + i18n.t('setup.readyToGo')));
+  console.log();
 };
 
 /**
@@ -40,23 +93,20 @@ const DEFAULT_CONFIG = {
  * @returns {Object} Configuration object
  */
 export function loadConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) {
+  if (!configExists()) {
     return { ...DEFAULT_CONFIG };
   }
 
   try {
-    const data = fs.readFileSync(CONFIG_PATH, 'utf-8');
-    const config = JSON.parse(data);
-
-    // Merge with defaults to ensure all keys exist
+    const config = readConfigFile();
     const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
     // Initialize i18n with the configured language
     i18n.initialize(mergedConfig.language);
 
     return mergedConfig;
-  } catch (err) {
-    console.error(chalk.red('⚠ ') + i18n.t('config.errors.readError', { error: err.message }));
+  } catch (error) {
+    showConfigError('read', error);
     return { ...DEFAULT_CONFIG };
   }
 }
@@ -68,19 +118,12 @@ export function loadConfig() {
  */
 export function saveConfig(data) {
   try {
-    // Ensure required fields
     const configToSave = {
       ...DEFAULT_CONFIG,
       ...data
     };
 
-    // Create config directory if it doesn't exist
-    if (!fs.existsSync(CONFIG_DIR)) {
-      fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    }
-
-    // Write config file with pretty formatting
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(configToSave, null, 2), 'utf-8');
+    writeConfigFile(configToSave);
 
     // Update i18n language if changed
     if (configToSave.language !== i18n.getLanguage()) {
@@ -88,8 +131,8 @@ export function saveConfig(data) {
     }
 
     return true;
-  } catch (err) {
-    console.error(chalk.red('⚠ ') + i18n.t('config.errors.saveError', { error: err.message }));
+  } catch (error) {
+    showConfigError('save', error);
     return false;
   }
 }
@@ -100,26 +143,15 @@ export function saveConfig(data) {
  */
 export async function setupConfig() {
   try {
-    // Run interactive setup
     const preferences = await setup();
-
-    // Load existing config (if any) and merge with new preferences
     const existingConfig = loadConfig();
     const newConfig = { ...existingConfig, ...preferences };
 
-    // Save configuration
     const saved = saveConfig(newConfig);
 
     if (saved) {
-      console.log();
-      console.log(chalk.green('✓ ') + i18n.t('setup.configSaved', { path: chalk.dim(CONFIG_PATH) }));
-      console.log();
-      console.log(chalk.cyan('  ' + i18n.t('setup.readyToGo')));
-      console.log();
-
-      // Wait a moment before starting the app
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
+      showSetupSuccess(CONFIG_PATH);
+      await new Promise(resolve => setTimeout(resolve, SETUP_DELAY_MS));
       return true;
     }
 
@@ -137,12 +169,7 @@ export async function setupConfig() {
  * @returns {boolean} True if valid
  */
 export function isConfigValid(config) {
-  return !!(
-    config &&
-    config.provider &&
-    config.apiKey &&
-    config.language
-  );
+  return hasRequiredFields(config) && hasValidCredentials(config);
 }
 
 /**
@@ -159,7 +186,7 @@ export function getConfigPath() {
  */
 export function getLanguage() {
   const config = loadConfig();
-  return config.language || 'en';
+  return config.language || DEFAULT_LANGUAGE;
 }
 
 /**
@@ -178,12 +205,12 @@ export function setLanguage(language) {
  */
 export function resetConfig() {
   try {
-    if (fs.existsSync(CONFIG_PATH)) {
+    if (configExists()) {
       fs.unlinkSync(CONFIG_PATH);
     }
     return true;
-  } catch (err) {
-    console.error(chalk.red('⚠ ') + 'Failed to reset config:', err.message);
+  } catch (error) {
+    console.error(chalk.red('⚠ ') + 'Failed to reset config:', error.message);
     return false;
   }
 }

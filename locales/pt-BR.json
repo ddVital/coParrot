@@ -10,7 +10,8 @@
     "goodbye": "Até logo!",
     "feedback": {
       "text": "Contribuições ou relatórios de bugs"
-    }
+    },
+    "notes": "heoo"
   },
   "cli": {
     "prompt": "> ",

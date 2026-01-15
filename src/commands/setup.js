@@ -1,96 +1,204 @@
 import { select, password, confirm, input, editor } from '@inquirer/prompts';
 import chalk from 'chalk';
 import i18n from '../services/i18n.js';
+import { loadConfig, saveConfig } from '../services/config.js';
+import axios from 'axios';
+import fs from 'fs';
+
+// Constants
+const BANNER_WIDTH = 60;
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
+const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b-instruct';
+const MIN_API_KEY_LENGTH = 10;
+const MAX_INSTRUCTIONS_LENGTH = 1000;
+const BYTES_TO_GB = 1e9;
+
+const PR_TEMPLATE_PATHS = [
+  '.github/pull_request_template.md',
+  '.github/PULL_REQUEST_TEMPLATE.md',
+  'docs/pull_request_template.md',
+  'PULL_REQUEST_TEMPLATE.md'
+];
+
+const DEFAULT_MODELS = {
+  openai: 'gpt-4',
+  claude: 'claude-3-5-sonnet-20241022',
+  gemini: 'gemini-2.0-flash-exp'
+};
+
+const SETUP_STEPS = {
+  LANGUAGE: 'language',
+  PROVIDER: 'provider',
+  MODEL: 'model',
+  CONVENTION: 'convention',
+  CUSTOM: 'custom',
+  INSTRUCTIONS: 'instructions'
+};
+
+// Utility functions
+const showBanner = (title, subtitle = null) => {
+  console.log();
+  console.log(chalk.cyan.bold('═'.repeat(BANNER_WIDTH)));
+  console.log(chalk.cyan.bold(title));
+  if (subtitle) console.log(chalk.dim(`  ${subtitle}`));
+  console.log(chalk.cyan.bold('═'.repeat(BANNER_WIDTH)));
+  console.log();
+};
+
+const showSuccess = (message) => {
+  console.log();
+  console.log(chalk.green('✓ ') + chalk.white(message));
+  console.log();
+};
+
+const showError = (message, hint = null) => {
+  console.log(chalk.red(`  ${message}`));
+  if (hint) console.log(chalk.dim(`  ${hint}`));
+};
+
+const handleSetupError = (error) => {
+  if (error.name === 'ExitPromptError') {
+    console.log();
+    console.log(chalk.yellow(i18n.t('setup.setupCancelled') || 'Setup cancelled.'));
+    process.exit(0);
+  }
+  throw error;
+};
+
+// Validation functions
+const validateApiKey = (value) => {
+  if (!value?.trim()) return 'API key cannot be empty';
+  if (value.trim().length < MIN_API_KEY_LENGTH) {
+    return 'API key seems too short. Please check and try again.';
+  }
+  return true;
+};
+
+const validateCustomFormat = (value) => {
+  if (!value?.trim()) {
+    return i18n.t('setup.customCommitRequired') || 'Custom format cannot be empty';
+  }
+  return true;
+};
+
+const validateInstructions = (value) => {
+  if (value?.length > MAX_INSTRUCTIONS_LENGTH) {
+    return i18n.t('setup.customInstructionsTooLong') ||
+           `Instructions too long (max ${MAX_INSTRUCTIONS_LENGTH} characters)`;
+  }
+  return true;
+};
 
 /**
  * Interactive setup wizard for coParrot
- * Guides users through initial configuration with a friendly UX
  */
 export async function setup() {
-  // Show welcome banner (before language selection, use English)
-  console.log();
-  console.log(chalk.cyan.bold('═'.repeat(60)));
-  console.log(chalk.cyan.bold('  Welcome to coParrot!'));
-  console.log(chalk.dim('  Let\'s get you set up. This will only take a minute.'));
-  console.log(chalk.cyan.bold('═'.repeat(60)));
-  console.log();
+  showBanner('Welcome to coParrot!', 'Let\'s get you set up. This will only take a minute.');
 
   try {
-    // Step 1: Language Selection (always in English initially)
     const language = await selectLanguage();
-
-    // Reinitialize i18n with selected language
     i18n.setLanguage(language);
 
-    // Clear screen and show welcome in selected language
     console.clear();
-    console.log();
-    console.log(chalk.cyan.bold('═'.repeat(60)));
-    console.log(chalk.cyan.bold(`  ${i18n.t('setup.welcome')}`));
-    console.log(chalk.dim(`  ${i18n.t('setup.intro')}`));
-    console.log(chalk.cyan.bold('═'.repeat(60)));
-    console.log();
+    showBanner(i18n.t('setup.welcome'), i18n.t('setup.intro'));
 
-    // Step 2: LLM Provider Selection
     const provider = await selectProvider();
-
-    // Step 3: API Key Input
-    const apiKey = await promptApiKey(provider);
-
-    // Step 4: Model Selection
-    const model = getDefaultModel(provider);
-
-    // Step 5: Commit Convention
-    const commitConvention = await selectCommitConvention();
-
-    // Step 6: Branch Naming Convention
-    const branchNaming = await selectBranchNaming();
-
-    // Step 7: Follow Project Patterns
-    const followProjectPatterns = await askFollowProjectPatterns();
-
-    // Step 8: Code Review Preferences
-    const codeReviewStyle = await selectCodeReviewStyle();
-
-    // Step 9: PR Message Style
-    const prMessageStyle = await selectPRMessageStyle();
-
-    // Step 10: Custom Instructions/Observations
+    const { apiKey, ollamaUrl } = await promptProviderCredentials(provider);
+    const model = await selectModel(provider, ollamaUrl);
+    const convention = await selectConvention();
+    const prTemplate = await detectPRTemplate();
     const customInstructions = await promptCustomInstructions();
 
-    console.log();
-    console.log(chalk.green('✓ ') + chalk.white(i18n.t('setup.setupComplete')));
-    console.log();
+    showSuccess(i18n.t('setup.setupComplete'));
 
-    return {
+    return buildSetupConfig({
       language,
       provider,
       apiKey,
+      ollamaUrl,
       model,
-      commitConvention,
-      branchNaming,
-      followProjectPatterns,
-      codeReviewStyle,
-      prMessageStyle,
+      convention,
+      prTemplate,
       customInstructions
-    };
-
+    });
   } catch (error) {
-    if (error.name === 'ExitPromptError') {
-      // User cancelled setup
-      console.log();
-      console.log(chalk.yellow(i18n.t('setup.setupCancelled') || 'Setup cancelled.'));
-      process.exit(0);
-    }
-    throw error;
+    handleSetupError(error);
   }
 }
 
 /**
- * Language selection step (always in English initially)
+ * Run a specific setup step
  */
+export async function setupStep(step) {
+  const config = loadConfig();
+  console.log();
+
+  try {
+    const stepHandlers = {
+      [SETUP_STEPS.LANGUAGE]: async () => {
+        const language = await selectLanguage();
+        i18n.setLanguage(language);
+        return { language };
+      },
+
+      [SETUP_STEPS.PROVIDER]: async () => {
+        const provider = await selectProvider();
+        const { apiKey, ollamaUrl } = await promptProviderCredentials(provider);
+        const model = await selectModel(provider, ollamaUrl);
+        return { provider, apiKey, ollamaUrl, model };
+      },
+
+      [SETUP_STEPS.MODEL]: async () => {
+        if (!config.provider) {
+          showError('No provider configured.', 'Run "setup provider" first.');
+          return null;
+        }
+        const model = await selectModel(config.provider, config.ollamaUrl);
+        return { model };
+      },
+
+      [SETUP_STEPS.CONVENTION]: async () => {
+        const commitConvention = await selectConvention();
+        return { commitConvention };
+      },
+
+      [SETUP_STEPS.CUSTOM]: async () => {
+        const customInstructions = await promptCustomInstructions();
+        return { customInstructions };
+      }
+    };
+
+    // Handle both 'custom' and 'instructions' aliases
+    const handler = stepHandlers[step] || stepHandlers[SETUP_STEPS.CUSTOM];
+
+    if (!handler) {
+      showError(
+        `Unknown setup step: ${step}`,
+        'Available steps: language, provider, model, convention, custom'
+      );
+      return;
+    }
+
+    const updates = await handler();
+
+    if (updates) {
+      Object.assign(config, updates);
+      saveConfig(config);
+      showSuccess('Configuration updated successfully!');
+    }
+  } catch (error) {
+    if (error.name === 'ExitPromptError') {
+      console.log();
+      console.log(chalk.yellow('Setup cancelled.'));
+    } else {
+      throw error;
+    }
+  }
+}
+
+// Step implementations
 async function selectLanguage() {
-  const language = await select({
+  return await select({
     message: 'Choose your preferred language:',
     choices: [
       {
@@ -110,345 +218,205 @@ async function selectLanguage() {
       }
     ],
     default: 'en'
+  }, {
+    clearPromptOnDone: true
   });
-
-  return language;
 }
 
-/**
- * Provider selection step with descriptions
- */
 async function selectProvider() {
   console.log();
 
-  const provider = await select({
+  return await select({
     message: i18n.t('setup.selectProvider'),
-    choices: [
-      {
-        name: i18n.t('setup.providers.openai'),
-        value: 'openai',
-        description: i18n.t('setup.providers.openaiDesc')
-      },
-      {
-        name: i18n.t('setup.providers.claude'),
-        value: 'claude',
-        description: i18n.t('setup.providers.claudeDesc')
-      },
-      {
-        name: i18n.t('setup.providers.gemini'),
-        value: 'gemini',
-        description: i18n.t('setup.providers.geminiDesc')
-      }
-    ]
+    choices: ['openai', 'claude', 'gemini', 'ollama'].map(provider => ({
+      name: i18n.t(`setup.providers.${provider}`),
+      value: provider,
+      description: i18n.t(`setup.providers.${provider}Desc`)
+    }))
+  }, {
+    clearPromptOnDone: true
   });
-
-  return provider;
 }
 
-/**
- * API Key input with helper text
- */
+async function promptProviderCredentials(provider) {
+  if (provider === 'ollama') {
+    const ollamaUrl = await promptOllamaUrl();
+    return { apiKey: null, ollamaUrl };
+  }
+
+  const apiKey = await promptApiKey(provider);
+  return { apiKey, ollamaUrl: null };
+}
+
 async function promptApiKey(provider) {
   console.log();
 
-  // Show helpful link to get API key
-  const urls = {
-    'openai': i18n.t('setup.apiKeyHelpUrls.openai'),
-    'claude': i18n.t('setup.apiKeyHelpUrls.claude'),
-    'gemini': i18n.t('setup.apiKeyHelpUrls.gemini')
+  const apiKeyUrls = {
+    openai: i18n.t('setup.apiKeyHelpUrls.openai'),
+    claude: i18n.t('setup.apiKeyHelpUrls.claude'),
+    gemini: i18n.t('setup.apiKeyHelpUrls.gemini')
   };
 
-  console.log(chalk.dim('  ' + i18n.t('setup.apiKeyHelp', { url: chalk.cyan(urls[provider]) })));
+  console.log(chalk.dim('  ' + i18n.t('setup.apiKeyHelp', {
+    url: chalk.cyan(apiKeyUrls[provider])
+  })));
   console.log();
 
   const apiKey = await password({
     message: i18n.t('setup.enterApiKey', { provider: chalk.bold(provider) }),
     mask: '•',
-    validate: (value) => {
-      if (!value || value.trim().length === 0) {
-        return 'API key cannot be empty';
-      }
-      if (value.trim().length < 10) {
-        return 'API key seems too short. Please check and try again.';
-      }
-      return true;
-    }
+    validate: validateApiKey
+  }, {
+    clearPromptOnDone: true
   });
 
   return apiKey.trim();
 }
 
-/**
- * Get default model for provider
- */
-function getDefaultModel(provider) {
-  const defaultModels = {
-    'openai': 'gpt-4',
-    'claude': 'claude-3-5-sonnet-20241022',
-    'gemini': 'gemini-pro'
-  };
+async function promptOllamaUrl() {
+  const url = await input({
+    message: `Enter your Ollama URL (default: ${DEFAULT_OLLAMA_URL}): `,
+    default: DEFAULT_OLLAMA_URL
+  }, {
+    clearPromptOnDone: true
+  });
 
-  return defaultModels[provider] || 'default';
+  return url.trim();
 }
 
-/**
- * Select commit message convention
- */
-async function selectCommitConvention() {
+async function selectModel(provider, ollamaUrl = null) {
   console.log();
 
+  if (provider === 'ollama') {
+    return await selectOllamaModel(ollamaUrl);
+  }
+
+  return await promptModelName(provider);
+}
+
+async function selectOllamaModel(ollamaUrl) {
+  try {
+    const models = await fetchOllamaModels(ollamaUrl);
+
+    if (models.length === 0) {
+      console.log(chalk.yellow('  No models found. Please install a model first.'));
+      return await promptModelName('ollama', DEFAULT_OLLAMA_MODEL);
+    }
+
+    return await select({
+      message: 'Select an Ollama model:',
+      choices: models.map(m => ({
+        name: m.name,
+        value: m.name,
+        description: `Size: ${(m.size / BYTES_TO_GB).toFixed(2)} GB`
+      }))
+    }, {
+      clearPromptOnDone: true
+    });
+  } catch (error) {
+    console.log(chalk.yellow('  Could not connect to Ollama. Using default.'));
+    return DEFAULT_OLLAMA_MODEL;
+  }
+}
+
+async function fetchOllamaModels(ollamaUrl) {
+  const response = await axios.get(`${ollamaUrl}/api/tags`);
+  return response.data.models || [];
+}
+
+async function promptModelName(provider, defaultModel = null) {
+  const model = await input({
+    message: `Enter model name for ${provider}:`,
+    default: defaultModel || DEFAULT_MODELS[provider] || ''
+  }, {
+    clearPromptOnDone: true
+  });
+
+  return model.trim();
+}
+
+async function selectConvention() {
+  console.log();
+
+  const conventions = ['conventional', 'gitmoji', 'simple', 'custom'];
   const convention = await select({
     message: i18n.t('setup.selectCommitConvention'),
-    choices: [
-      {
-        name: i18n.t('setup.commitConventions.conventional'),
-        value: 'conventional',
-        description: i18n.t('setup.commitConventions.conventionalDesc')
-      },
-      {
-        name: i18n.t('setup.commitConventions.gitmoji'),
-        value: 'gitmoji',
-        description: i18n.t('setup.commitConventions.gitmojiDesc')
-      },
-      {
-        name: i18n.t('setup.commitConventions.simple'),
-        value: 'simple',
-        description: i18n.t('setup.commitConventions.simpleDesc')
-      },
-      {
-        name: i18n.t('setup.commitConventions.custom'),
-        value: 'custom',
-        description: i18n.t('setup.commitConventions.customDesc')
-      }
-    ],
+    choices: conventions.map(conv => ({
+      name: i18n.t(`setup.commitConventions.${conv}`),
+      value: conv,
+      description: i18n.t(`setup.commitConventions.${conv}Desc`)
+    })),
     default: 'conventional'
+  }, {
+    clearPromptOnDone: true
   });
 
-  // If custom, ask for the custom format
   if (convention === 'custom') {
-    console.log();
-    console.log(chalk.dim('  ' + i18n.t('setup.customCommitHelp')));
-    console.log();
-
-    const customFormat = await editor({
-      message: i18n.t('setup.enterCustomCommit'),
-      default: i18n.t('setup.customCommitExample'),
-      waitForUseInput: false,
-      validate: (value) => {
-        if (!value || value.trim().length === 0) {
-          return i18n.t('setup.customCommitRequired') || 'Custom format cannot be empty';
-        }
-        return true;
-      }
-    });
-
-    // Return an object with both the type and the custom format
-    return {
-      type: 'custom',
-      format: customFormat.trim()
-    };
+    return await promptCustomConvention();
   }
 
-  return {
-    type: convention,
-    format: null
-  };
-}
-
-/**
- * Select branch naming convention
- */
-async function selectBranchNaming() {
-  console.log();
-
-  const naming = await select({
-    message: i18n.t('setup.selectBranchNaming'),
-    choices: [
-      {
-        name: i18n.t('setup.branchNaming.gitflow'),
-        value: 'gitflow',
-        description: i18n.t('setup.branchNaming.gitflowDesc')
-      },
-      {
-        name: i18n.t('setup.branchNaming.descriptive'),
-        value: 'descriptive',
-        description: i18n.t('setup.branchNaming.descriptiveDesc')
-      },
-      {
-        name: i18n.t('setup.branchNaming.ticket'),
-        value: 'ticket-based',
-        description: i18n.t('setup.branchNaming.ticketDesc')
-      },
-      {
-        name: i18n.t('setup.branchNaming.custom'),
-        value: 'custom',
-        description: i18n.t('setup.branchNaming.customDesc')
-      }
-    ],
-    default: 'gitflow'
+  // Ask about verbose commits
+  const verboseCommits = await confirm({
+    message: 'Generate detailed commit messages with extended descriptions?',
+    default: false
+  }, {
+    clearPromptOnDone: true
   });
 
-  // If custom, ask for the custom format
-  if (naming === 'custom') {
-    console.log();
-    console.log(chalk.dim('  ' + i18n.t('setup.customBranchHelp')));
-    console.log();
-
-    const customFormat = await editor({
-      message: i18n.t('setup.enterCustomBranch'),
-      default: i18n.t('setup.customBranchExample'),
-      waitForUseInput: false,
-      validate: (value) => {
-        if (!value || value.trim().length === 0) {
-          return i18n.t('setup.customBranchRequired') || 'Custom format cannot be empty';
-        }
-        return true;
-      }
-    });
-
-    return {
-      type: 'custom',
-      format: customFormat.trim()
-    };
-  }
-
-  return {
-    type: naming,
-    format: null
-  };
+  return { type: convention, format: null, verboseCommits };
 }
 
-/**
- * Ask if user wants to follow project patterns
- */
-async function askFollowProjectPatterns() {
+async function promptCustomConvention() {
+  console.log();
+  console.log(chalk.dim('  ' + i18n.t('setup.customCommitHelp')));
   console.log();
 
-  const followPatterns = await confirm({
-    message: i18n.t('setup.followProjectPatterns'),
-    default: true
+  const customFormat = await editor({
+    message: i18n.t('setup.enterCustomCommit'),
+    default: i18n.t('setup.customCommitExample'),
+    waitForUseInput: false,
+    validate: validateCustomFormat
+  }, {
+    clearPromptOnDone: true
   });
 
-  if (!followPatterns) {
-    return {
-      enabled: false,
-      analyzeDepth: 0
-    };
-  }
-
-  console.log();
-
-  const analyzeDepth = await select({
-    message: i18n.t('setup.selectAnalyzeDepth'),
-    choices: [
-      {
-        name: i18n.t('setup.analyzeDepth.last10'),
-        value: 10,
-        description: i18n.t('setup.analyzeDepth.last10Desc')
-      },
-      {
-        name: i18n.t('setup.analyzeDepth.last25'),
-        value: 25,
-        description: i18n.t('setup.analyzeDepth.last25Desc')
-      },
-      {
-        name: i18n.t('setup.analyzeDepth.last50'),
-        value: 50,
-        description: i18n.t('setup.analyzeDepth.last50Desc')
-      },
-      {
-        name: i18n.t('setup.analyzeDepth.all'),
-        value: 0,
-        description: i18n.t('setup.analyzeDepth.allDesc')
-      }
-    ],
-    default: 25
+  // Ask about verbose commits
+  const verboseCommits = await confirm({
+    message: 'Generate detailed commit messages with extended descriptions?',
+    default: false
+  }, {
+    clearPromptOnDone: true
   });
 
   return {
-    enabled: true,
-    analyzeDepth: analyzeDepth,
-    analyzeBranches: true,
-    analyzeCommits: true
+    type: 'custom',
+    format: customFormat.trim(),
+    verboseCommits
   };
 }
 
-/**
- * Select code review style
- */
-async function selectCodeReviewStyle() {
-  console.log();
+export async function detectPRTemplate() {
+  for (const templatePath of PR_TEMPLATE_PATHS) {
+    if (fs.existsSync(templatePath)) {
+      console.log(chalk.green('  ✓ Found PR template: ') + chalk.dim(templatePath));
+      return { path: templatePath, style: 'template' };
+    }
+  }
 
-  const style = await select({
-    message: i18n.t('setup.selectCodeReviewStyle'),
-    choices: [
-      {
-        name: i18n.t('setup.codeReviewStyles.detailed'),
-        value: 'detailed',
-        description: i18n.t('setup.codeReviewStyles.detailedDesc')
-      },
-      {
-        name: i18n.t('setup.codeReviewStyles.concise'),
-        value: 'concise',
-        description: i18n.t('setup.codeReviewStyles.conciseDesc')
-      },
-      {
-        name: i18n.t('setup.codeReviewStyles.security'),
-        value: 'security-focused',
-        description: i18n.t('setup.codeReviewStyles.securityDesc')
-      }
-    ],
-    default: 'detailed'
-  });
-
-  return style;
+  return { path: null, style: 'detailed' };
 }
 
-/**
- * Select PR message style
- */
-async function selectPRMessageStyle() {
-  console.log();
-
-  const style = await select({
-    message: i18n.t('setup.selectPRStyle'),
-    choices: [
-      {
-        name: i18n.t('setup.prStyles.detailed'),
-        value: 'detailed',
-        description: i18n.t('setup.prStyles.detailedDesc')
-      },
-      {
-        name: i18n.t('setup.prStyles.concise'),
-        value: 'concise',
-        description: i18n.t('setup.prStyles.conciseDesc')
-      },
-      {
-        name: i18n.t('setup.prStyles.technical'),
-        value: 'technical',
-        description: i18n.t('setup.prStyles.technicalDesc')
-      }
-    ],
-    default: 'detailed'
-  });
-
-  return style;
-}
-
-/**
- * Prompt for custom instructions/observations
- */
 async function promptCustomInstructions() {
   console.log();
 
   const wantsCustom = await confirm({
     message: i18n.t('setup.wantsCustomInstructions'),
     default: false
+  }, {
+    clearPromptOnDone: true
   });
 
-  if (!wantsCustom) {
-    return '';
-  }
+  if (!wantsCustom) return '';
 
   console.log();
   console.log(chalk.dim('  ' + i18n.t('setup.customInstructionsHelp')));
@@ -459,28 +427,33 @@ async function promptCustomInstructions() {
     message: i18n.t('setup.enterCustomInstructions'),
     default: i18n.t('setup.customInstructionsExample'),
     waitForUseInput: false,
-    validate: (value) => {
-      if (value && value.length > 1000) {
-        return i18n.t('setup.customInstructionsTooLong') || 'Instructions too long (max 1000 characters)';
-      }
-      return true;
-    }
+    validate: validateInstructions
+  }, {
+    clearPromptOnDone: true
   });
 
   return instructions.trim();
 }
 
-/**
- * Test API connection (optional, can be implemented later)
- */
-async function testConnection(provider, apiKey, model) {
-  console.log();
-  console.log(chalk.dim('  ' + i18n.t('setup.testing', { provider })));
-
-  // TODO: Implement actual API test
-  // For now, just simulate
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  return true;
+function buildSetupConfig({
+  language,
+  provider,
+  apiKey,
+  ollamaUrl,
+  model,
+  convention,
+  prTemplate,
+  customInstructions
+}) {
+  return {
+    language,
+    provider,
+    apiKey,
+    ollamaUrl,
+    model,
+    commitConvention: convention,
+    prTemplatePath: prTemplate.path,
+    prMessageStyle: prTemplate.style,
+    customInstructions
+  };
 }
-

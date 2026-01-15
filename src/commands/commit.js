@@ -14,6 +14,7 @@ export async function gitCommit(repo, message) {
   try {
     const output = await repo.commit(message);
     console.log(output);
+    // console.log("hi")
   } catch (error) {
     console.error(i18n.t('output.prefixes.error'), error.message);
     throw error;

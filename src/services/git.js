@@ -84,12 +84,15 @@ class GitRepository {
    * @returns {string} Diff output
    */
   diff(files = [], options = {}) {
-    const { staged = false, numstat = false, nameOnly = false } = options;
+    const { staged = false, numstat = false, nameOnly = false, compact = false, upstream = false, revisionRange = "" } = options;
 
     let cmd = 'git diff';
     if (staged) cmd += ' --cached';
     if (numstat) cmd += ' --numstat';
     if (nameOnly) cmd += ' --name-only';
+    if (compact) cmd += ' --unified=1 --word-diff=plain --ignore-all-space'
+    if (upstream) cmd += ' @{u}..HEAD'
+    if (revisionRange) cmd += ` ${revisionRange}`
     if (files.length) cmd += ` -- ${files.map(f => `"${f}"`).join(' ')}`;
 
     return this.exec(cmd);
