@@ -38,16 +38,12 @@ Example: "feat(core): implement lazy loading"`,
     ? '\n- REQUIRED: Add extended body after blank line explaining what changed and why'
     : '\n- Add extended body (blank line + details) only for complex/breaking changes';
 
-  return `Generate git commit message. Output ONLY the message, no quotes, no explanations.
+  return `Generate commit message. Output ONLY the message, no quotes/explanations.
 
 ${guide}
 
-CRITICAL: Ignore diff syntax (commas, braces, brackets). Look at CONTENT being added/removed.
-- Adding new field/function/file = feat or chore (NOT fix)
-- Fixing incorrect behavior = fix
-- Modifying existing code without changing behavior = refactor
-- Use specific scopes: i18n, auth, api, ui (NOT data, utils, core)
-- Imperative mood, <72 chars first line${verboseHint}${baseInstructions}${additionalInstructions}`;
+Classify by CONTENT not syntax: new feature/field=feat, broken behavior fixed=fix, restructure=refactor
+Scopes: i18n, auth, api, ui (not data/utils/core). Imperative mood, <72 chars${verboseHint}${baseInstructions}${additionalInstructions}`;
 }
 
 /**
@@ -62,41 +58,33 @@ export function buildBranchPrompt(convention = 'gitflow', baseInstructions = '',
   const conventionGuides = {
     gitflow: `Format: <type>/<description>
 Types: feat, fix, hotfix, chore, revert, tests, release
-Example: "feat/user-authentication"`,
+Ex: feat/user-authentication`,
 
     github: `Format: <type>/<description>
 Types: feat, fix, docs, chore, refactor
-Example: "feat/add-dark-mode"`,
+Ex: feat/add-dark-mode`,
 
     gitlab: `Format: <issue>-<description> or <type>/<description>
-Example: "42-implement-search"`,
+Ex: 42-implement-search`,
 
     ticket: `Format: <ticket-id>/<description>
-Example: "JIRA-123/add-export"`,
+Ex: JIRA-123/add-export`,
 
     custom: `Follow custom format from config.`
   };
 
   const guide = conventionGuides[convention] || conventionGuides.gitflow;
 
-  // Build recent branches section if available
-  let branchesSection = '';
-  if (recentBranches && recentBranches.length > 0) {
-    branchesSection = `\n\nRecent branches in this project (follow the same naming pattern):\n${recentBranches.map(b => `- ${b}`).join('\n')}`;
-  }
+  const branchesSection = recentBranches?.length
+    ? `\nRecent branches (match pattern):\n${recentBranches.map(b => `- ${b}`).join('\n')}`
+    : '';
 
-  return `You are a git branch name generator. You will receive a task description and must generate a conventional git branch name based on it.
+  return `Generate branch name. Output ONLY the name, no quotes/explanations.
 
-RULES:
 ${guide}
-- Use lowercase letters only
-- Use kebab-case (words separated by hyphens)
-- Keep it concise but descriptive (3-50 characters)
-- Choose the appropriate type (feat/fix/chore/etc.) based on the task description${branchesSection}
+Rules: lowercase, kebab-case, 3-50 chars${branchesSection}${baseInstructions}${additionalInstructions}
 
-OUTPUT FORMAT: Return ONLY the branch name, no quotes, no explanations, no git commands, no markdown.
-
-TASK DESCRIPTION (generate branch name from this):`;
+Task:`;
 }
 
 /**
@@ -115,11 +103,11 @@ export function buildPRPrompt(style = 'detailed', baseInstructions = '', additio
 
   const guide = styleGuides[style] || styleGuides.detailed;
 
-  return `Generate a PR description. Output ONLY the description content with markdown formatting. No meta-commentary, no wrapper quotes.
+  return `Generate PR description in markdown. Output ONLY content, no meta-commentary.
 
 ${guide}
 
-Analyze commits, create cohesive narrative, highlight important changes.${baseInstructions}${additionalInstructions}`;
+Analyze commits, cohesive narrative, highlight key changes.${baseInstructions}${additionalInstructions}`;
 }
 
 /**
@@ -130,10 +118,9 @@ Analyze commits, create cohesive narrative, highlight important changes.${baseIn
  * @returns {string} The complete system prompt
  */
 export function buildCodeReviewPrompt(style = 'detailed', baseInstructions = '', additionalInstructions = '') {
-  return `Generate a code review. Output ONLY the review with markdown formatting. No meta-commentary.
+  return `Generate code review in markdown. Output ONLY review content.
 
-Focus: bugs, quality, performance, security, testing, documentation.
-Style: ${style}${baseInstructions}${additionalInstructions}`;
+Focus: bugs, quality, perf, security, tests, docs. Style: ${style}${baseInstructions}${additionalInstructions}`;
 }
 
 /**
@@ -153,7 +140,7 @@ export function buildSystemPrompt(type, options = {}) {
   } = options;
 
   const additionalInstructions = customInstructions
-    ? `\n\nADDITIONAL USER INSTRUCTIONS:\n${customInstructions}`
+    ? `\n\nUser notes:\n${customInstructions}`
     : '';
 
   switch (type) {
