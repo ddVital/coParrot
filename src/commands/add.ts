@@ -1,22 +1,25 @@
 import { checkbox } from '@inquirer/prompts';
 import MarkdownRenderer from '../lib/renderer.js';
 import i18n from '../services/i18n.js';
+import type GitRepository from '../services/git.js';
+import type { GitChange } from '../services/git.js';
+
+interface PromptError extends Error {
+  name: string;
+}
 
 /**
  * Prompts the user to select files to add to git staging area
- * @param {string[]} files - Array of file paths to choose from
- * @returns {Promise<string[]>} Array of selected file paths
- * @throws {Error} If files array is invalid or empty
  */
-export async function selectFilesToAdd(files) {
+export async function selectFilesToAdd(files: string[]): Promise<string[]> {
   if (!files || !Array.isArray(files) || files.length === 0) {
     throw new Error(i18n.t('git.add.noFilesAvailable'));
   }
 
   try {
-    const response = await checkbox({
+    const response = await checkbox<string>({
       message: i18n.t('git.add.selectFiles'),
-      choices: files,
+      choices: files.map(f => ({ name: f, value: f })),
       loop: false,
     });
 
@@ -26,7 +29,8 @@ export async function selectFilesToAdd(files) {
 
     return response;
   } catch (error) {
-    if (error.name === 'ExitPromptError') {
+    const err = error as PromptError;
+    if (err.name === 'ExitPromptError') {
       // User cancelled the prompt
       return [];
     }
@@ -36,35 +40,31 @@ export async function selectFilesToAdd(files) {
 
 /**
  * Adds selected files to git staging area
- * @param {Object} repo - Git repository instance
- * @param {string[]} changes - Array of changed file paths
- * @returns {Promise<void>}
- * @throws {Error} If git add operation fails
  */
-export async function gitAdd(repo, changes) {
+export async function gitAdd(repo: GitRepository, changes: GitChange[]): Promise<void> {
   try {
-    const selectedFiles = await selectFilesToAdd(changes);
+    const filePaths = changes.map(c => c.value);
+    const selectedFiles = await selectFilesToAdd(filePaths);
 
-    await repo.restoreAll();
+    repo.restoreAll();
 
     if (selectedFiles.length === 0) {
       console.log(i18n.t('git.add.noFilesSelected'));
       return;
     }
 
-    await repo.add(selectedFiles);
+    repo.add(selectedFiles);
   } catch (error) {
-    console.error(i18n.t('output.prefixes.error'), error.message);
+    const err = error as Error;
+    console.error(i18n.t('output.prefixes.error'), err.message);
     throw error;
   }
 }
 
 /**
  * Displays a formatted list of staged files
- * @param {string[]} files - Array of file paths that were staged
- * @private
  */
-function showAddedFiles(files) {
+function showAddedFiles(files: string[]): void {
   const renderer = new MarkdownRenderer({
     width: process.stdout.columns || 80
   });

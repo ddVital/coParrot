@@ -1,24 +1,23 @@
 #!/usr/bin/env node
 
-import CLI from '../src/lib/cli.js';
-import gitRepository from '../src/services/git.js'
-import LLMOrchestrator from '../src/services/llms.js'
+import CLIClass from '../src/lib/cli.js';
+import gitRepository from '../src/services/git.js';
+import LLMOrchestrator from '../src/services/llms.js';
 import { program } from 'commander';
 import chalk from 'chalk';
-import { loadConfig, setupConfig } from '../src/services/config.js'
-import { setupStep } from '../src/commands/setup.js'
-import { gitAdd } from '../src/commands/add.js'
-import { gitCommit } from '../src/commands/commit.js'
-import { gitCheckout } from '../src/commands/checkout.js'
-import { squawk } from '../src/commands/squawk.js'
-import { hookCommand } from '../src/commands/hook.js'
+import { loadConfig, setupConfig } from '../src/services/config.js';
+import { setupStep } from '../src/commands/setup.js';
+import { gitAdd } from '../src/commands/add.js';
+import { gitCommit } from '../src/commands/commit.js';
+import { gitCheckout } from '../src/commands/checkout.js';
+import { squawk } from '../src/commands/squawk.js';
+import { hookCommand } from '../src/commands/hook.js';
 import i18n from '../src/services/i18n.js';
 import { parseFlag } from '../src/utils/args-parser.js';
 import { VERSION } from '../src/utils/index.js';
-import State from '../src/services/state.js'
-import logUpdate from 'log-update';
-import { detectPRTemplate } from '../src/commands/setup.js'
-import { handlePrCommand } from '../src/commands/pr.js'
+import { handlePrCommand } from '../src/commands/pr.js';
+
+import type { GitChange } from '../src/services/git.js';
 
 // Configure commander
 program
@@ -32,23 +31,22 @@ program
 const config = loadConfig();
 
 /**
- * Example: Custom command handler
+ * Custom command handler
  */
-async function handleCommand(cmd, args, cli) {
+async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promise<void> {
   const repo = new gitRepository();
-  const status = repo.getDetailedStatus();
-  const state = new State();
+  const status: GitChange[] = repo.getDetailedStatus();
+
   // Initialize LLM provider
   const provider = new LLMOrchestrator({
-    provider: config.provider,
-    apiKey: config.apiKey,
-    ollamaUrl: config.ollamaUrl,
-    model: config.model,
+    provider: config.provider as 'openai' | 'claude' | 'gemini' | 'ollama' | undefined,
+    apiKey: config.apiKey ?? undefined,
+    ollamaUrl: config.ollamaUrl ?? undefined,
+    model: config.model ?? undefined,
     instructions: {
-      'commit': config.commitConvention,
-      'review': config.codeReviewStyle,
-      'pr': config.prMessageStyle,
-      'custom': config.customInstructions
+      commitConvention: config.commitConvention,
+      prMessageStyle: config.prMessageStyle,
+      customInstructions: config.customInstructions
     },
     skipApproval: args.includes('-y') || args.includes('--yes')
   });
@@ -76,7 +74,7 @@ async function handleCommand(cmd, args, cli) {
 
       // Check for verbose flag override
       const verboseOverride = args.includes('--verbose') || args.includes('-v');
-      if (verboseOverride) {
+      if (verboseOverride && provider.options.instructions?.commitConvention) {
         provider.options.instructions.commitConvention.verboseCommits = true;
       }
 
@@ -87,16 +85,18 @@ async function handleCommand(cmd, args, cli) {
         console.log(commitMessage);
       } else {
         commitMessage = await provider.generateCommitMessage(context);
-        gitCommit(repo, commitMessage)
+        if (commitMessage) {
+          gitCommit(repo, commitMessage);
+        }
       }
 
       break;
     case 'squawk':
       const ignoredFiles = parseFlag(args, '--ignore');
       const groupedFiles = parseFlag(args, '--group');
-      const fromDate = parseFlag(args, '--from')[0] || null;
-      const toDate = parseFlag(args, '--to')[0] || null;
-      const timezone = parseFlag(args, '--timezone')[0] || null;
+      const fromDate = parseFlag(args, '--from')[0] || undefined;
+      const toDate = parseFlag(args, '--to')[0] || undefined;
+      const timezone = parseFlag(args, '--timezone')[0] || undefined;
       const excludeWeekends = args.includes('--exclude-weekends');
 
       await squawk(repo, provider, {
@@ -138,7 +138,7 @@ async function handleCommand(cmd, args, cli) {
 /**
  * Start the CLI
  */
-async function main() {
+async function main(): Promise<void> {
   // Check if a command was passed as argument (e.g., coparrot status)
   // Do this BEFORE parsing commander to avoid conflicts
   const rawArgs = process.argv.slice(2);
@@ -157,7 +157,7 @@ async function main() {
   const language = config.language || 'en';
   i18n.initialize(language);
 
-  const cli = new CLI({
+  const cli = new CLIClass({
     appName: 'CoParrot',
     version: '1.0.1',
     multiline: !options.singleLine,

@@ -5,10 +5,29 @@ import chalk from 'chalk';
 import { setup } from '../commands/setup.js';
 import i18n from './i18n.js';
 
+// Types
+export interface CommitConvention {
+  type: string;
+  format: string | null;
+  verboseCommits: boolean;
+}
+
+export interface AppConfig {
+  language: string;
+  provider: string | null;
+  model: string | null;
+  apiKey: string | null;
+  ollamaUrl: string | null;
+  commitConvention: CommitConvention;
+  prTemplatePath: string | null;
+  prMessageStyle: string;
+  customInstructions: string;
+}
+
 // Constants
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'coparrot');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
-const CONFIG_ENCODING = 'utf-8';
+const CONFIG_ENCODING: BufferEncoding = 'utf-8';
 const JSON_INDENT = 2;
 const SETUP_DELAY_MS = 1500;
 
@@ -18,12 +37,12 @@ const DEFAULT_CONVENTION_TYPE = 'conventional';
 
 const PROVIDER = {
   OLLAMA: 'ollama'
-};
+} as const;
 
 /**
  * Default configuration structure
  */
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG: AppConfig = {
   language: DEFAULT_LANGUAGE,
   provider: null,
   model: null,
@@ -48,23 +67,23 @@ const ensureConfigDir = () => {
 
 const configExists = () => fs.existsSync(CONFIG_PATH);
 
-const readConfigFile = () => {
+const readConfigFile = (): AppConfig => {
   const data = fs.readFileSync(CONFIG_PATH, CONFIG_ENCODING);
-  return JSON.parse(data);
+  return JSON.parse(data) as AppConfig;
 };
 
-const writeConfigFile = (config) => {
+const writeConfigFile = (config: AppConfig): void => {
   ensureConfigDir();
   const data = JSON.stringify(config, null, JSON_INDENT);
   fs.writeFileSync(CONFIG_PATH, data, CONFIG_ENCODING);
 };
 
 // Validation helpers
-const hasRequiredFields = (config) => {
-  return config?.provider && config?.language;
+const hasRequiredFields = (config: AppConfig | null): boolean => {
+  return !!(config?.provider && config?.language);
 };
 
-const hasValidCredentials = (config) => {
+const hasValidCredentials = (config: AppConfig): boolean => {
   if (config.provider === PROVIDER.OLLAMA) {
     return !!config.ollamaUrl;
   }
@@ -72,13 +91,13 @@ const hasValidCredentials = (config) => {
 };
 
 // Error handling
-const showConfigError = (action, error) => {
+const showConfigError = (action: string, error: Error): void => {
   const errorKey = `config.errors.${action}Error`;
   const message = i18n.t(errorKey, { error: error.message });
   console.error(chalk.red('⚠ ') + message);
 };
 
-const showSetupSuccess = (configPath) => {
+const showSetupSuccess = (configPath: string): void => {
   console.log();
   console.log(chalk.green('✓ ') + i18n.t('setup.configSaved', {
     path: chalk.dim(configPath)
@@ -90,9 +109,8 @@ const showSetupSuccess = (configPath) => {
 
 /**
  * Load configuration from disk
- * @returns {Object} Configuration object
  */
-export function loadConfig() {
+export function loadConfig(): AppConfig {
   if (!configExists()) {
     return { ...DEFAULT_CONFIG };
   }
@@ -106,19 +124,17 @@ export function loadConfig() {
 
     return mergedConfig;
   } catch (error) {
-    showConfigError('read', error);
+    showConfigError('read', error as Error);
     return { ...DEFAULT_CONFIG };
   }
 }
 
 /**
  * Save configuration to disk
- * @param {Object} data - Configuration data to save
- * @returns {boolean} Success status
  */
-export function saveConfig(data) {
+export function saveConfig(data: Partial<AppConfig>): boolean {
   try {
-    const configToSave = {
+    const configToSave: AppConfig = {
       ...DEFAULT_CONFIG,
       ...data
     };
@@ -132,16 +148,15 @@ export function saveConfig(data) {
 
     return true;
   } catch (error) {
-    showConfigError('save', error);
+    showConfigError('save', error as Error);
     return false;
   }
 }
 
 /**
  * Run the interactive setup wizard and save configuration
- * @returns {Promise<boolean>} Success status
  */
-export async function setupConfig() {
+export async function setupConfig(): Promise<boolean> {
   try {
     const preferences = await setup();
     const existingConfig = loadConfig();
@@ -157,43 +172,39 @@ export async function setupConfig() {
 
     return false;
   } catch (error) {
+    const err = error as Error;
     console.error(chalk.red('\n✗ ') + i18n.t('setup.setupFailed'));
-    console.error(chalk.dim('  ' + error.message));
+    console.error(chalk.dim('  ' + err.message));
     return false;
   }
 }
 
 /**
  * Check if configuration is valid and complete
- * @param {Object} config - Configuration object to validate
- * @returns {boolean} True if valid
  */
-export function isConfigValid(config) {
+export function isConfigValid(config: AppConfig): boolean {
   return hasRequiredFields(config) && hasValidCredentials(config);
 }
 
 /**
  * Get configuration file path
- * @returns {string} Path to config file
  */
-export function getConfigPath() {
+export function getConfigPath(): string {
   return CONFIG_PATH;
 }
 
 /**
  * Get the current language from config
- * @returns {string} Language code
  */
-export function getLanguage() {
+export function getLanguage(): string {
   const config = loadConfig();
   return config.language || DEFAULT_LANGUAGE;
 }
 
 /**
  * Set the language in config
- * @param {string} language - Language code
  */
-export function setLanguage(language) {
+export function setLanguage(language: string): void {
   const config = loadConfig();
   config.language = language;
   saveConfig(config);
@@ -201,16 +212,16 @@ export function setLanguage(language) {
 
 /**
  * Reset configuration (delete config file)
- * @returns {boolean} Success status
  */
-export function resetConfig() {
+export function resetConfig(): boolean {
   try {
     if (configExists()) {
       fs.unlinkSync(CONFIG_PATH);
     }
     return true;
   } catch (error) {
-    console.error(chalk.red('⚠ ') + 'Failed to reset config:', error.message);
+    const err = error as Error;
+    console.error(chalk.red('⚠ ') + 'Failed to reset config:', err.message);
     return false;
   }
 }

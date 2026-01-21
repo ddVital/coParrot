@@ -2,11 +2,18 @@ import { execSync } from 'child_process';
 import chalk from 'chalk';
 import i18n from '../services/i18n.js';
 
+interface RepoStats {
+  totalCommits: number;
+  contributors: number;
+  todayCommits: number;
+  lastCommit: string;
+  currentBranch: string;
+}
+
 /**
  * Get cool facts about the current repository
- * @returns {Object} Repository statistics
  */
-export function getRepoStats() {
+export function getRepoStats(): RepoStats | null {
   try {
     // Get total commits
     const totalCommits = execSync('git rev-list --count HEAD', { encoding: 'utf-8' }).trim();
@@ -51,9 +58,8 @@ export function getRepoStats() {
 
 /**
  * Get a random funny message about coding
- * @returns {string} Funny message
  */
-export function getFunnyMessage() {
+export function getFunnyMessage(): string {
   const messages = [
     "🎨 May your commits be atomic and your merges conflict-free!",
     "🚀 Houston, we're ready for git-off!",

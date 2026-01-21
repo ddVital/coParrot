@@ -5,15 +5,58 @@ import { filterByGlob, matchesAnyPattern } from '../utils/glob.js';
 import TransientProgress from '../utils/transient-progress.js';
 import { select } from '@inquirer/prompts';
 import logUpdate from 'log-update';
+import type GitRepository from '../services/git.js';
+import type LLMOrchestrator from '../services/llms.js';
+
+// Interfaces
+interface GitChange {
+  value: string;
+  status: string;
+  statusCode: string;
+  checked: boolean;
+  additions: number;
+  deletions: number;
+  added?: number;
+  deleted?: number;
+}
+
+interface FileGroup {
+  pattern: string;
+  files: GitChange[];
+  added?: number;
+  deleted?: number;
+}
+
+interface DateOptions {
+  from?: string;
+  to?: string;
+  timezone?: string;
+  excludeWeekends?: boolean;
+}
+
+interface SquawkOptions extends DateOptions {
+  ignore?: string[];
+  group?: string[];
+}
+
+interface ItemWithComplexity {
+  index: number;
+  linesChanged: number;
+}
+
+interface FileError {
+  filename: string;
+  error: string;
+}
 
 /**
  * Calculates commit timestamps distributed across a date range
- * @param {Array<Object>} ungroupedChanges - Array of individual file changes
- * @param {Array<Object>} groups - Array of grouped files
- * @param {Object} options - Date options
- * @returns {Array<Date>} Array of timestamps for each commit
  */
-function calculateCommitTimestamps(ungroupedChanges, groups, options) {
+function calculateCommitTimestamps(
+  ungroupedChanges: GitChange[],
+  groups: FileGroup[],
+  options: DateOptions
+): Date[] | null {
   const { from, to, timezone, excludeWeekends } = options;
 
   // If no date range specified, return null (commits will use current time)
@@ -52,7 +95,7 @@ function calculateCommitTimestamps(ungroupedChanges, groups, options) {
   }
 
   // Combine all items (groups first, then individual files)
-  const allItems = [...groups, ...ungroupedChanges];
+  const allItems: (FileGroup | GitChange)[] = [...groups, ...ungroupedChanges];
   const totalCommits = allItems.length;
 
   if (totalCommits === 0) {
@@ -60,17 +103,18 @@ function calculateCommitTimestamps(ungroupedChanges, groups, options) {
   }
 
   // Calculate complexity for each item (based on lines changed)
-  const itemsWithComplexity = allItems.map((item, index) => {
+  const itemsWithComplexity: ItemWithComplexity[] = allItems.map((item, index) => {
     let linesChanged = 0;
 
-    if (item.files) {
+    if ('files' in item && item.files) {
       // This is a group
-      linesChanged = item.files.reduce((sum, file) => {
+      linesChanged = item.files.reduce((sum: number, file: GitChange) => {
         return sum + (file.added || 0) + (file.deleted || 0);
       }, 0);
     } else {
       // This is an individual file
-      linesChanged = (item.added || 0) + (item.deleted || 0);
+      const change = item as GitChange;
+      linesChanged = (change.added || 0) + (change.deleted || 0);
     }
 
     return {
@@ -94,15 +138,17 @@ function calculateCommitTimestamps(ungroupedChanges, groups, options) {
   }
 
   // Distribute commits across time based on complexity
-  const timestamps = new Array(totalCommits);
-  let currentDate = new Date(startDate);
+  const timestamps: Date[] = new Array(totalCommits);
+  let currentDate: Date | null = new Date(startDate);
 
   // Minimum time between commits (5 minutes)
   const minTimeBetweenCommits = 5 * 60 * 1000;
 
   itemsWithComplexity.forEach((item, sequenceIndex) => {
     // Skip to next working time if needed
-    currentDate = skipToNextWorkingTime(currentDate, excludeWeekends, endDate);
+    if (currentDate) {
+      currentDate = skipToNextWorkingTime(currentDate, excludeWeekends, endDate);
+    }
 
     if (!currentDate || currentDate > endDate) {
       // Ran out of time, use end date
@@ -135,12 +181,12 @@ function calculateCommitTimestamps(ungroupedChanges, groups, options) {
 
 /**
  * Calculates total available working time in milliseconds
- * @param {Date} startDate - Start date
- * @param {Date} endDate - End date
- * @param {boolean} excludeWeekends - Whether to exclude weekends
- * @returns {number} Total working time in milliseconds
  */
-function calculateAvailableWorkingTime(startDate, endDate, excludeWeekends) {
+function calculateAvailableWorkingTime(
+  startDate: Date,
+  endDate: Date,
+  excludeWeekends: boolean | undefined
+): number {
   let totalMs = 0;
   const current = new Date(startDate);
   const workDayMs = 9 * 60 * 60 * 1000; // 9 hours per day (9 AM - 6 PM)
@@ -161,12 +207,12 @@ function calculateAvailableWorkingTime(startDate, endDate, excludeWeekends) {
 
 /**
  * Skips to next working time if current time is outside working hours or on weekend
- * @param {Date} date - Current date
- * @param {boolean} excludeWeekends - Whether to exclude weekends
- * @param {Date} endDate - End boundary
- * @returns {Date} Next valid working time
  */
-function skipToNextWorkingTime(date, excludeWeekends, endDate) {
+function skipToNextWorkingTime(
+  date: Date,
+  excludeWeekends: boolean | undefined,
+  endDate: Date
+): Date | null {
   const result = new Date(date);
 
   // Check if we're past the end date
@@ -207,17 +253,12 @@ function skipToNextWorkingTime(date, excludeWeekends, endDate) {
 
 /**
  * Main entry point for squawk command - commits each file individually with AI-generated messages
- * @param {Object} repo - Git repository instance
- * @param {Object} provider - LLM provider instance
- * @param {Object} options - Command options
- * @param {string[]} options.ignore - Glob patterns for files to ignore
- * @param {string} options.from - Start date for commit timestamps (YYYY-MM-DD)
- * @param {string} options.to - End date for commit timestamps (YYYY-MM-DD)
- * @param {string} options.timezone - Timezone for dates (e.g., 'America/New_York', default: system timezone)
- * @param {boolean} options.excludeWeekends - Whether to exclude weekends from date distribution
- * @returns {Promise<void>}
  */
-export async function squawk(repo, provider, options = {}) {
+export async function squawk(
+  repo: GitRepository,
+  provider: LLMOrchestrator,
+  options: SquawkOptions = {}
+): Promise<void> {
   const startTime = Date.now();
 
   try {
@@ -262,18 +303,16 @@ export async function squawk(repo, provider, options = {}) {
 
     showSquawkSummary(stats);
   } catch (error) {
-    console.error(i18n.t('output.prefixes.error'), error.message);
+    const err = error as Error;
+    console.error(i18n.t('output.prefixes.error'), err.message);
     throw error;
   }
 }
 
 /**
  * Applies ignore patterns to filter out unwanted files
- * @param {Array<Object>} changes - Array of change objects from git status
- * @param {string[]} ignorePatterns - Glob patterns to filter
- * @returns {Array<Object>} Filtered changes
  */
-function applyIgnorePatterns(changes, ignorePatterns) {
+function applyIgnorePatterns(changes: GitChange[], ignorePatterns?: string[]): GitChange[] {
   if (!ignorePatterns || ignorePatterns.length === 0) {
     return changes;
   }
@@ -302,11 +341,11 @@ function applyIgnorePatterns(changes, ignorePatterns) {
 
 /**
  * Applies group patterns to organize files into groups
- * @param {Array<Object>} changes - Array of change objects from git status
- * @param {string[]} groupPatterns - Glob patterns for grouping
- * @returns {Object} Object with groups array and ungroupedChanges array
  */
-function applyGroupPatterns(changes, groupPatterns) {
+function applyGroupPatterns(
+  changes: GitChange[],
+  groupPatterns?: string[]
+): { groups: FileGroup[]; ungroupedChanges: GitChange[] } {
   if (!groupPatterns || groupPatterns.length === 0) {
     return { groups: [], ungroupedChanges: changes };
   }
@@ -344,6 +383,11 @@ function applyGroupPatterns(changes, groupPatterns) {
  * Simple stats tracker for squawk command
  */
 class SquawkStats {
+  completed: number;
+  failed: number;
+  skipped: number;
+  startTime: number;
+
   constructor() {
     this.completed = 0;
     this.failed = 0;
@@ -351,19 +395,19 @@ class SquawkStats {
     this.startTime = Date.now();
   }
 
-  incrementCompleted() {
+  incrementCompleted(): void {
     this.completed++;
   }
 
-  incrementFailed() {
+  incrementFailed(): void {
     this.failed++;
   }
 
-  incrementSkipped() {
+  incrementSkipped(): void {
     this.skipped++;
   }
 
-  getElapsed() {
+  getElapsed(): string {
     return ((Date.now() - this.startTime) / 1000).toFixed(1);
   }
 }
@@ -371,7 +415,7 @@ class SquawkStats {
 /**
  * Shows the squawk command title with progress bar style
  */
-function showSquawkTitle() {
+function showSquawkTitle(): void {
   console.log();
   console.log(chalk.cyan.bold('🦜 Squawk - Committing Files Individually'));
   const separator = '━'.repeat(Math.min(process.stdout.columns - 2 || 78, 80));
@@ -381,14 +425,14 @@ function showSquawkTitle() {
 
 /**
  * Processes each file sequentially: stage, generate message, commit
- * @param {Object} repo - Git repository instance
- * @param {Object} provider - LLM provider instance
- * @param {Array<Object>} changes - Array of changes to process
- * @param {Array<Object>} groups - Array of grouped files
- * @param {Array<Date>} timestamps - Array of timestamps for each commit (optional)
- * @returns {Promise<Object>} Statistics about commits
  */
-async function processFilesSequentially(repo, provider, changes, groups, timestamps = null) {
+async function processFilesSequentially(
+  repo: GitRepository,
+  provider: LLMOrchestrator,
+  changes: GitChange[],
+  groups: FileGroup[],
+  timestamps: Date[] | null = null
+): Promise<SquawkStats> {
   const stats = new SquawkStats();
   const transientProgress = new TransientProgress();
 
@@ -414,16 +458,16 @@ async function processFilesSequentially(repo, provider, changes, groups, timesta
 
 /**
  * Processes grouped files
- * @param {Object} repo - Git repository instance
- * @param {Object} provider - LLM provider instance
- * @param {Array<Object>} groups - Array of grouped files
- * @param {number} totalIndividual - Number of individual files
- * @param {Array<Date>} timestamps - Array of timestamps for each commit (optional)
- * @param {TransientProgress} transientProgress - Transient progress instance
- * @param {SquawkStats} stats - Stats tracker instance
- * @returns {Promise<Object>} Statistics about group commits
  */
-async function processGroups(repo, provider, groups, totalIndividual, timestamps = null, transientProgress = null, stats = null) {
+async function processGroups(
+  repo: GitRepository,
+  provider: LLMOrchestrator,
+  groups: FileGroup[],
+  totalIndividual: number,
+  timestamps: Date[] | null = null,
+  transientProgress: TransientProgress | null = null,
+  stats: SquawkStats | null = null
+): Promise<SquawkStats | null> {
   for (let j = 0; j < groups.length; j++) {
     const group = groups[j];
     const timestamp = timestamps ? timestamps[j] : null;
@@ -434,11 +478,11 @@ async function processGroups(repo, provider, groups, totalIndividual, timestamps
     const result = await processGroupCommit(repo, provider, group, timestamp, transientProgress);
 
     if (result === 'committed') {
-      stats.incrementCompleted();
+      stats?.incrementCompleted();
     } else if (result === 'failed') {
-      stats.incrementFailed();
+      stats?.incrementFailed();
     } else if (result === 'skipped') {
-      stats.incrementSkipped();
+      stats?.incrementSkipped();
     }
   }
 
@@ -447,17 +491,17 @@ async function processGroups(repo, provider, groups, totalIndividual, timestamps
 
 /**
  * Processes a group commit with new UI flow
- * @param {Object} repo - Git repository instance
- * @param {Object} provider - LLM provider instance
- * @param {Object} group - Group object containing files
- * @param {Date} timestamp - Optional timestamp for the commit
- * @param {TransientProgress} transientProgress - Transient progress instance
- * @returns {Promise<string>} Result status: 'committed', 'skipped', or 'failed'
  */
-async function processGroupCommit(repo, provider, group, timestamp = null, transientProgress = null) {
+async function processGroupCommit(
+  repo: GitRepository,
+  provider: LLMOrchestrator,
+  group: FileGroup,
+  timestamp: Date | null = null,
+  transientProgress: TransientProgress | null = null
+): Promise<string> {
   try {
     // Stage the files
-    await stageFiles(repo, group.files);
+    await stageFiles(repo, group.files.map(f => f.value));
 
     // Show transient "Generating message..." indicator
     if (transientProgress) {
@@ -492,7 +536,7 @@ async function processGroupCommit(repo, provider, group, timestamp = null, trans
     process.stdout.write('\x1b[3A\x1b[0J'); // Move up 3 lines and clear from cursor down
 
     if (action === 'approve') {
-      await commitFile(repo, group.files, commitMessage, timestamp);
+      await commitFile(repo, group.files.map(f => f.value), commitMessage, timestamp);
       return 'committed';
     } else if (action === 'skip') {
       return 'skipped';
@@ -500,25 +544,28 @@ async function processGroupCommit(repo, provider, group, timestamp = null, trans
       // Recursive retry
       return await processGroupCommit(repo, provider, group, timestamp, transientProgress);
     }
+
+    return 'skipped';
   } catch (error) {
     if (transientProgress) {
       transientProgress.clearTransient();
     }
-    logFileError(group.pattern, error.message);
+    const err = error as Error;
+    logFileError(group.pattern, err.message);
     return 'failed';
   }
 }
 
 /**
  * Processes a single file: stages, generates commit message, and commits
- * @param {Object} repo - Git repository instance
- * @param {Object} provider - LLM provider instance
- * @param {Object} change - Change object containing file info
- * @param {Date} timestamp - Optional timestamp for the commit
- * @param {TransientProgress} transientProgress - Transient progress instance
- * @returns {Promise<string>} Result status: 'committed', 'skipped', or 'failed'
  */
-async function processSingleFile(repo, provider, change, timestamp = null, transientProgress = null) {
+async function processSingleFile(
+  repo: GitRepository,
+  provider: LLMOrchestrator,
+  change: GitChange,
+  timestamp: Date | null = null,
+  transientProgress: TransientProgress | null = null
+): Promise<string> {
   try {
     // Stage the file
     await stageFiles(repo, [change.value]);
@@ -564,11 +611,14 @@ async function processSingleFile(repo, provider, change, timestamp = null, trans
       // Recursive retry
       return await processSingleFile(repo, provider, change, timestamp, transientProgress);
     }
+
+    return 'skipped';
   } catch (error) {
     if (transientProgress) {
       transientProgress.clearTransient();
     }
-    logFileError(change.value, error.message);
+    const err = error as Error;
+    logFileError(change.value, err.message);
     return 'failed';
   }
 }
@@ -576,42 +626,37 @@ async function processSingleFile(repo, provider, change, timestamp = null, trans
 /**
  * Logs file errors (stored for later display)
  */
-const fileErrors = [];
+const fileErrors: FileError[] = [];
 
-function logFileError(filename, error) {
+function logFileError(filename: string, error: string): void {
   fileErrors.push({ filename, error });
 }
 
 /**
  * Stages files silently
- * @param {Object} repo - Git repository instance
- * @param {Array[]} files - Files to stage
  */
-async function stageFiles(repo, files) {
+async function stageFiles(repo: GitRepository, files: string[]): Promise<void> {
   await repo.add(files);
-  //console.log('add')
 }
 
 /**
  * Generates a commit message for staged changes silently
- * @param {Object} repo - Git repository instance
- * @param {Object} provider - LLM provider instance
- * @returns {Promise<string>} Generated commit message
  */
-async function generateCommitMessage(repo, provider) {
+async function generateCommitMessage(repo: GitRepository, provider: LLMOrchestrator): Promise<string> {
   const context = repo.diff([], { staged: true });
   const commitMessage = await provider.generateCommitMessage(context);
-  return commitMessage;
+  return commitMessage || '';
 }
 
 /**
  * Commits files with the given message silently
- * @param {Object} repo - Git repository instance
- * @param {Array} files - Files being committed
- * @param {string} message - Commit message
- * @param {Date} timestamp - Optional timestamp for the commit
  */
-async function commitFile(repo, files, message, timestamp = null) {
+async function commitFile(
+  repo: GitRepository,
+  files: string[],
+  message: string,
+  timestamp: Date | null = null
+): Promise<void> {
   if (timestamp) {
     await repo.commit(message, { date: timestamp });
   } else {
@@ -622,9 +667,8 @@ async function commitFile(repo, files, message, timestamp = null) {
 
 /**
  * Displays a formatted summary with stats and timing
- * @param {SquawkStats} stats - Statistics tracker instance
  */
-function showSquawkSummary(stats) {
+function showSquawkSummary(stats: SquawkStats): void {
   console.log();
   console.log(chalk.cyan.bold('Summary'));
   console.log();

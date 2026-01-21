@@ -6,7 +6,7 @@ import { VERSION } from './index.js';
 /**
  * Display modern, minimalist welcome banner
  */
-export async function displayWelcomeBanner(appName = 'CoParrot') {
+export async function displayWelcomeBanner(appName: string = 'CoParrot'): Promise<void> {
   const repoStats = await getRepoStats();
 
   // Modern gradient for app name

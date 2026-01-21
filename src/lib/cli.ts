@@ -1,15 +1,38 @@
-import inquirer from 'inquirer';
 import readline from 'readline';
 import chalk from 'chalk';
 import MarkdownRenderer from './renderer.js';
 import StreamingOutput from './streamer.js';
 import i18n from '../services/i18n.js';
 
+interface CLIOptions {
+  appName?: string;
+  version?: string;
+  prompt?: string;
+  multiline?: boolean;
+  onCommand?: (cmd: string, args: string[], cli: CLI) => Promise<void>;
+  customCommands?: Record<string, string>;
+  config?: Record<string, any>;
+}
+
+interface HistoryEntry {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 /**
  * Main CLI Interface
  */
 class CLI {
-  constructor(options = {}) {
+  options: Required<Pick<CLIOptions, 'appName' | 'version' | 'prompt' | 'multiline'>> & CLIOptions;
+  config: Record<string, any>;
+  renderer: any; // TODO: type when renderer.ts is migrated
+  streamer: any; // TODO: type when streamer.ts is migrated
+  conversationHistory: HistoryEntry[];
+  isRunning: boolean;
+  lastCtrlC: number;
+  private _gitRepository: any;
+
+  constructor(options: CLIOptions = {}) {
     this.options = {
       appName: options.appName || 'CoParrot',
       version: options.version || '1.0.0',
@@ -27,13 +50,14 @@ class CLI {
     this.streamer = new StreamingOutput(this.renderer);
     this.conversationHistory = [];
     this.isRunning = false;
-    this.lastCtrlC = 0; // Track last Ctrl+C timestamp for double-press detection
+    this.lastCtrlC = 0;
+    this._gitRepository = null;
   }
 
   /**
    * Start the CLI interface
    */
-  async start() {
+  async start(): Promise<void> {
     await this.streamer.showWelcome(this.options.appName, this.options.version, this.config);
 
     this.isRunning = true;
@@ -48,7 +72,7 @@ class CLI {
   /**
    * Handle Ctrl+C - require double press to exit
    */
-  handleCtrlC() {
+  handleCtrlC(): void {
     const now = Date.now();
     const timeSinceLastCtrlC = now - this.lastCtrlC;
 
@@ -66,7 +90,7 @@ class CLI {
   /**
    * Main interaction loop
    */
-  async mainLoop() {
+  async mainLoop(): Promise<void> {
     while (this.isRunning) {
       try {
         const userInput = await this.getUserInput();
@@ -79,11 +103,12 @@ class CLI {
         await this.handleCommand(userInput);
 
       } catch (error) {
-        if (error.isTtyError) {
+        const err = error as { isTtyError?: boolean; message?: string };
+        if (err.isTtyError) {
           this.streamer.showError(i18n.t('cli.messages.renderError'));
           break;
         } else {
-          this.streamer.showError(error);
+          this.streamer.showError(err.message || error);
         }
       }
     }
@@ -92,10 +117,10 @@ class CLI {
   /**
    * Get user input with TAB completion support
    */
-  async getUserInput() {
+  async getUserInput(): Promise<string> {
     return new Promise((resolve) => {
       // Create a completer function for TAB completion
-      const completer = (line) => {
+      const completer = (line: string): [string[], string] => {
         return this.createCompleter(line);
       };
 
@@ -138,10 +163,8 @@ class CLI {
 
   /**
    * Creates smart completions based on current input
-   * @param {string} line - Current input line
-   * @returns {Array} [completions, line]
    */
-  createCompleter(line) {
+  createCompleter(line: string): [string[], string] {
     const trimmedLine = line.trim();
 
     // File completion for squawk --ignore (check this FIRST)
@@ -178,10 +201,8 @@ class CLI {
 
   /**
    * Completes file paths for /squawk --ignore command
-   * @param {string} line - Current input line
-   * @returns {Array} [completions, partial]
    */
-  completeSquawkIgnore(line) {
+  completeSquawkIgnore(line: string): [string[], string] {
     try {
       // Dynamically import git repository to get changed files
       const gitRepository = this.getGitRepository();
@@ -191,7 +212,7 @@ class CLI {
 
       const repo = new gitRepository();
       const changes = repo.getDetailedStatus();
-      const availableFiles = changes.map(c => c.value);
+      const availableFiles: string[] = changes.map((c: { value: string }) => c.value);
 
       // Extract the part after the last --ignore
       const ignoreIndex = line.lastIndexOf('--ignore');
@@ -202,11 +223,11 @@ class CLI {
       const afterIgnore = line.substring(ignoreIndex + 8).trim();
 
       // Split by spaces to get individual words
-      const words = afterIgnore.split(/\s+/).filter(w => w.length > 0);
+      const words = afterIgnore.split(/\s+/).filter((w: string) => w.length > 0);
       const currentWord = words[words.length - 1] || '';
 
       // Find matching files
-      const hits = availableFiles.filter(file =>
+      const hits = availableFiles.filter((file: string) =>
         file.toLowerCase().startsWith(currentWord.toLowerCase())
       );
 
@@ -218,7 +239,7 @@ class CLI {
       // Return just the matching files and the current word being typed
       // readline will replace currentWord with the selected completion
       return [hits.length ? hits : availableFiles, currentWord];
-    } catch (error) {
+    } catch {
       return [[], ''];
     }
   }
@@ -226,30 +247,24 @@ class CLI {
   /**
    * Gets git repository class (lazy loaded to avoid circular dependency)
    */
-  getGitRepository() {
-    try {
-      // Store reference if not already stored
-      if (!this._gitRepository) {
-        // Will be set from outside
-        return null;
-      }
-      return this._gitRepository;
-    } catch {
+  getGitRepository(): any {
+    if (!this._gitRepository) {
       return null;
     }
+    return this._gitRepository;
   }
 
   /**
    * Sets the git repository class for file completion
    */
-  setGitRepository(gitRepoClass) {
+  setGitRepository(gitRepoClass: any): void {
     this._gitRepository = gitRepoClass;
   }
 
   /**
    * Handle commands (no / prefix needed)
    */
-  async handleCommand(command) {
+  async handleCommand(command: string): Promise<void> {
     // Remove leading / if present (for backwards compatibility)
     const cleanCommand = command.startsWith('/') ? command.slice(1) : command;
     const [cmd, ...args] = cleanCommand.split(' ');
@@ -291,7 +306,7 @@ class CLI {
   /**
    * Show quick help
    */
-  showQuickHelp() {
+  showQuickHelp(): void {
     console.log();
     console.log(chalk.rgb(34, 197, 94).bold(' Quick Commands:'));
     console.log();
@@ -305,7 +320,7 @@ class CLI {
   /**
    * Show help message
    */
-  showHelp() {
+  showHelp(): void {
     console.log();
     console.log(chalk.rgb(6, 182, 212).bold(' Available Commands'));
     console.log();
@@ -333,7 +348,7 @@ class CLI {
   /**
    * Show conversation history
    */
-  showHistory() {
+  showHistory(): void {
     console.log();
     console.log(chalk.white.bold(i18n.t('cli.history.title') + ':'));
     console.log();
@@ -344,7 +359,7 @@ class CLI {
       return;
     }
 
-    this.conversationHistory.forEach((entry, index) => {
+    this.conversationHistory.forEach((entry: HistoryEntry) => {
       const roleColor = entry.role === 'user' ? chalk.cyan : chalk.green;
       const roleLabel = entry.role === 'user' ? i18n.t('cli.history.you') : i18n.t('cli.history.assistant');
 
@@ -357,10 +372,10 @@ class CLI {
   /**
    * Shutdown the CLI gracefully
    */
-  async shutdown() {
+  async shutdown(): Promise<void> {
     this.streamer.stopThinking();
     console.log();
-    this.streamer.showInfo(i18n.t('app.goodbye') + ' 👋');
+    this.streamer.showInfo(i18n.t('app.goodbye'));
     console.log();
     this.isRunning = false;
     process.exit(0);
@@ -369,7 +384,7 @@ class CLI {
   /**
    * Simulate streaming response (for demonstration)
    */
-  async simulateStreaming(text, delayMs = 20) {
+  async simulateStreaming(text: string, delayMs = 20): Promise<void> {
     this.streamer.startStream();
 
     const words = text.split(' ');
@@ -384,7 +399,7 @@ class CLI {
   /**
    * Display a response with markdown
    */
-  displayResponse(markdown) {
+  displayResponse(markdown: string): void {
     const rendered = this.renderer.render(markdown);
     console.log(rendered);
 
@@ -398,21 +413,21 @@ class CLI {
   /**
    * Display tool usage
    */
-  displayToolUse(toolName, description) {
+  displayToolUse(toolName: string, description: string): void {
     this.streamer.showToolExecution(toolName, description);
   }
 
   /**
    * Display tool result
    */
-  displayToolResult(toolName, success = true) {
+  displayToolResult(toolName: string, success = true): void {
     this.streamer.showToolResult(toolName, success);
   }
 
   /**
    * Utility: Sleep function
    */
-  sleep(ms) {
+  sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

@@ -2,8 +2,58 @@ import { select, password, confirm, input, editor } from '@inquirer/prompts';
 import chalk from 'chalk';
 import i18n from '../services/i18n.js';
 import { loadConfig, saveConfig } from '../services/config.js';
+import type { AppConfig } from '../services/config.js';
 import axios from 'axios';
 import fs from 'fs';
+
+// Interfaces
+interface CommitConvention {
+  type: string;
+  format: string | null;
+  verboseCommits: boolean;
+}
+
+interface PRTemplate {
+  path: string | null;
+  style: string;
+}
+
+interface SetupConfigParams {
+  language: string;
+  provider: string;
+  apiKey: string | null;
+  ollamaUrl: string | null;
+  model: string;
+  convention: CommitConvention;
+  prTemplate: PRTemplate;
+  customInstructions: string;
+}
+
+interface SetupConfig {
+  language: string;
+  provider: string;
+  apiKey: string | null;
+  ollamaUrl: string | null;
+  model: string;
+  commitConvention: CommitConvention;
+  prTemplatePath: string | null;
+  prMessageStyle: string;
+  customInstructions: string;
+}
+
+interface OllamaModel {
+  name: string;
+  size: number;
+}
+
+interface ProviderCredentials {
+  apiKey: string | null;
+  ollamaUrl: string | null;
+}
+
+interface PromptError extends Error {
+  name: string;
+}
 
 // Constants
 const BANNER_WIDTH = 60;
@@ -36,7 +86,7 @@ const SETUP_STEPS = {
 };
 
 // Utility functions
-const showBanner = (title, subtitle = null) => {
+const showBanner = (title: string, subtitle: string | null = null): void => {
   console.log();
   console.log(chalk.cyan.bold('═'.repeat(BANNER_WIDTH)));
   console.log(chalk.cyan.bold(title));
@@ -45,19 +95,20 @@ const showBanner = (title, subtitle = null) => {
   console.log();
 };
 
-const showSuccess = (message) => {
+const showSuccess = (message: string): void => {
   console.log();
   console.log(chalk.green('✓ ') + chalk.white(message));
   console.log();
 };
 
-const showError = (message, hint = null) => {
+const showError = (message: string, hint: string | null = null): void => {
   console.log(chalk.red(`  ${message}`));
   if (hint) console.log(chalk.dim(`  ${hint}`));
 };
 
-const handleSetupError = (error) => {
-  if (error.name === 'ExitPromptError') {
+const handleSetupError = (error: unknown): void => {
+  const err = error as PromptError;
+  if (err.name === 'ExitPromptError') {
     console.log();
     console.log(chalk.yellow(i18n.t('setup.setupCancelled') || 'Setup cancelled.'));
     process.exit(0);
@@ -66,7 +117,7 @@ const handleSetupError = (error) => {
 };
 
 // Validation functions
-const validateApiKey = (value) => {
+const validateApiKey = (value: string | undefined): string | true => {
   if (!value?.trim()) return 'API key cannot be empty';
   if (value.trim().length < MIN_API_KEY_LENGTH) {
     return 'API key seems too short. Please check and try again.';
@@ -74,15 +125,15 @@ const validateApiKey = (value) => {
   return true;
 };
 
-const validateCustomFormat = (value) => {
+const validateCustomFormat = (value: string | undefined): string | true => {
   if (!value?.trim()) {
     return i18n.t('setup.customCommitRequired') || 'Custom format cannot be empty';
   }
   return true;
 };
 
-const validateInstructions = (value) => {
-  if (value?.length > MAX_INSTRUCTIONS_LENGTH) {
+const validateInstructions = (value: string | undefined): string | true => {
+  if (value?.length && value.length > MAX_INSTRUCTIONS_LENGTH) {
     return i18n.t('setup.customInstructionsTooLong') ||
            `Instructions too long (max ${MAX_INSTRUCTIONS_LENGTH} characters)`;
   }
@@ -92,7 +143,7 @@ const validateInstructions = (value) => {
 /**
  * Interactive setup wizard for coParrot
  */
-export async function setup() {
+export async function setup(): Promise<SetupConfig | undefined> {
   showBanner('Welcome to coParrot!', 'Let\'s get you set up. This will only take a minute.');
 
   try {
@@ -129,12 +180,12 @@ export async function setup() {
 /**
  * Run a specific setup step
  */
-export async function setupStep(step) {
+export async function setupStep(step: string): Promise<void> {
   const config = loadConfig();
   console.log();
 
   try {
-    const stepHandlers = {
+    const stepHandlers: Record<string, () => Promise<Partial<AppConfig> | null>> = {
       [SETUP_STEPS.LANGUAGE]: async () => {
         const language = await selectLanguage();
         i18n.setLanguage(language);
@@ -187,7 +238,8 @@ export async function setupStep(step) {
       showSuccess('Configuration updated successfully!');
     }
   } catch (error) {
-    if (error.name === 'ExitPromptError') {
+    const err = error as PromptError;
+    if (err.name === 'ExitPromptError') {
       console.log();
       console.log(chalk.yellow('Setup cancelled.'));
     } else {
@@ -197,7 +249,7 @@ export async function setupStep(step) {
 }
 
 // Step implementations
-async function selectLanguage() {
+async function selectLanguage(): Promise<string> {
   return await select({
     message: 'Choose your preferred language:',
     choices: [
@@ -223,7 +275,7 @@ async function selectLanguage() {
   });
 }
 
-async function selectProvider() {
+async function selectProvider(): Promise<string> {
   console.log();
 
   return await select({
@@ -238,7 +290,7 @@ async function selectProvider() {
   });
 }
 
-async function promptProviderCredentials(provider) {
+async function promptProviderCredentials(provider: string): Promise<ProviderCredentials> {
   if (provider === 'ollama') {
     const ollamaUrl = await promptOllamaUrl();
     return { apiKey: null, ollamaUrl };
@@ -248,10 +300,10 @@ async function promptProviderCredentials(provider) {
   return { apiKey, ollamaUrl: null };
 }
 
-async function promptApiKey(provider) {
+async function promptApiKey(provider: string): Promise<string> {
   console.log();
 
-  const apiKeyUrls = {
+  const apiKeyUrls: Record<string, string> = {
     openai: i18n.t('setup.apiKeyHelpUrls.openai'),
     claude: i18n.t('setup.apiKeyHelpUrls.claude'),
     gemini: i18n.t('setup.apiKeyHelpUrls.gemini')
@@ -273,7 +325,7 @@ async function promptApiKey(provider) {
   return apiKey.trim();
 }
 
-async function promptOllamaUrl() {
+async function promptOllamaUrl(): Promise<string> {
   const url = await input({
     message: `Enter your Ollama URL (default: ${DEFAULT_OLLAMA_URL}): `,
     default: DEFAULT_OLLAMA_URL
@@ -284,17 +336,17 @@ async function promptOllamaUrl() {
   return url.trim();
 }
 
-async function selectModel(provider, ollamaUrl = null) {
+async function selectModel(provider: string, ollamaUrl: string | null = null): Promise<string> {
   console.log();
 
   if (provider === 'ollama') {
-    return await selectOllamaModel(ollamaUrl);
+    return await selectOllamaModel(ollamaUrl || DEFAULT_OLLAMA_URL);
   }
 
   return await promptModelName(provider);
 }
 
-async function selectOllamaModel(ollamaUrl) {
+async function selectOllamaModel(ollamaUrl: string): Promise<string> {
   try {
     const models = await fetchOllamaModels(ollamaUrl);
 
@@ -319,15 +371,16 @@ async function selectOllamaModel(ollamaUrl) {
   }
 }
 
-async function fetchOllamaModels(ollamaUrl) {
+async function fetchOllamaModels(ollamaUrl: string): Promise<OllamaModel[]> {
   const response = await axios.get(`${ollamaUrl}/api/tags`);
   return response.data.models || [];
 }
 
-async function promptModelName(provider, defaultModel = null) {
+async function promptModelName(provider: string, defaultModel: string | null = null): Promise<string> {
+  const defaultModelsTyped: Record<string, string> = DEFAULT_MODELS;
   const model = await input({
     message: `Enter model name for ${provider}:`,
-    default: defaultModel || DEFAULT_MODELS[provider] || ''
+    default: defaultModel || defaultModelsTyped[provider] || ''
   }, {
     clearPromptOnDone: true
   });
@@ -335,7 +388,7 @@ async function promptModelName(provider, defaultModel = null) {
   return model.trim();
 }
 
-async function selectConvention() {
+async function selectConvention(): Promise<CommitConvention> {
   console.log();
 
   const conventions = ['conventional', 'gitmoji', 'simple', 'custom'];
@@ -366,7 +419,7 @@ async function selectConvention() {
   return { type: convention, format: null, verboseCommits };
 }
 
-async function promptCustomConvention() {
+async function promptCustomConvention(): Promise<CommitConvention> {
   console.log();
   console.log(chalk.dim('  ' + i18n.t('setup.customCommitHelp')));
   console.log();
@@ -374,7 +427,7 @@ async function promptCustomConvention() {
   const customFormat = await editor({
     message: i18n.t('setup.enterCustomCommit'),
     default: i18n.t('setup.customCommitExample'),
-    waitForUseInput: false,
+    waitForUserInput: false,
     validate: validateCustomFormat
   }, {
     clearPromptOnDone: true
@@ -395,7 +448,7 @@ async function promptCustomConvention() {
   };
 }
 
-export async function detectPRTemplate() {
+export async function detectPRTemplate(): Promise<PRTemplate> {
   for (const templatePath of PR_TEMPLATE_PATHS) {
     if (fs.existsSync(templatePath)) {
       console.log(chalk.green('  ✓ Found PR template: ') + chalk.dim(templatePath));
@@ -406,7 +459,7 @@ export async function detectPRTemplate() {
   return { path: null, style: 'detailed' };
 }
 
-async function promptCustomInstructions() {
+async function promptCustomInstructions(): Promise<string> {
   console.log();
 
   const wantsCustom = await confirm({
@@ -426,7 +479,7 @@ async function promptCustomInstructions() {
   const instructions = await editor({
     message: i18n.t('setup.enterCustomInstructions'),
     default: i18n.t('setup.customInstructionsExample'),
-    waitForUseInput: false,
+    waitForUserInput: false,
     validate: validateInstructions
   }, {
     clearPromptOnDone: true
@@ -444,7 +497,7 @@ function buildSetupConfig({
   convention,
   prTemplate,
   customInstructions
-}) {
+}: SetupConfigParams): SetupConfig {
   return {
     language,
     provider,

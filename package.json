@@ -2,14 +2,23 @@
   "name": "coparrot",
   "version": "1.0.1",
   "description": "Your multilingual Git assistant - AI-powered CLI tool for Git operations",
-  "main": "bin/index.js",
-  "scripts": {
-    "start": "node bin/index.js",
-    "dev": "node --watch bin/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "bin": {
-    "coparrot": "./bin/index.js"
+    "coparrot": "./dist/bin/index.js",
+    "cpt": "./dist/bin/index.js"
+  },
+  "files": [
+    "dist",
+    "locales",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "tsx --watch bin/index.ts",
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "git",
@@ -45,6 +54,7 @@
     "localesPath": "./locales"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@google/genai": "^1.33.0",
     "@inquirer/search": "^4.0.1",
     "axios": "^1.13.2",
@@ -61,5 +71,13 @@
     "micromatch": "^4.0.8",
     "openai": "^6.9.1",
     "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/figlet": "^1.7.0",
+    "@types/gradient-string": "^1.1.6",
+    "@types/micromatch": "^4.0.10",
+    "@types/node": "^25.0.9",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }

@@ -1,14 +1,31 @@
 import chalk from 'chalk';
-import ora from 'ora';
+import ora, { Ora } from 'ora';
 import { displayWelcomeBanner } from '../utils/welcome-banner.js';
 import i18n from '../services/i18n.js';
 import TransientProgress from '../utils/transient-progress.js';
+
+interface GitChange {
+  status: string;
+  value: string;
+  additions?: number;
+  deletions?: number;
+}
+
+interface AppConfig {
+  provider?: string;
+  [key: string]: any;
+}
 
 /**
  * Handles streaming output with elegant formatting
  */
 class StreamingOutput {
-  constructor(renderer) {
+  renderer: any; // TODO: type when renderer.ts is migrated
+  currentSpinner: Ora | null;
+  buffer: string;
+  transientProgress: any; // TODO: type when transient-progress.ts is migrated
+
+  constructor(renderer: any) {
     this.renderer = renderer;
     this.currentSpinner = null;
     this.buffer = '';
@@ -18,14 +35,14 @@ class StreamingOutput {
   /**
    * Start streaming text output
    */
-  startStream() {
+  startStream(): void {
     this.buffer = '';
   }
 
   /**
    * Add chunk to stream
    */
-  addChunk(chunk) {
+  addChunk(chunk: string): void {
     this.buffer += chunk;
     // Stream word by word for natural feel
     process.stdout.write(chunk);
@@ -34,7 +51,7 @@ class StreamingOutput {
   /**
    * End the current stream
    */
-  endStream() {
+  endStream(): void {
     if (this.buffer) {
       process.stdout.write('\n\n');
       this.buffer = '';
@@ -44,7 +61,7 @@ class StreamingOutput {
   /**
    * Show a thinking indicator
    */
-  startThinking(message = null) {
+  startThinking(message: string | null = null): void {
     if (this.currentSpinner) {
       this.currentSpinner.stop();
     }
@@ -60,7 +77,7 @@ class StreamingOutput {
   /**
    * Stop thinking indicator
    */
-  stopThinking() {
+  stopThinking(): void {
     if (this.currentSpinner) {
       this.currentSpinner.stop();
       this.currentSpinner = null;
@@ -70,7 +87,7 @@ class StreamingOutput {
   /**
    * Update thinking message
    */
-  updateThinking(message) {
+  updateThinking(message: string): void {
     if (this.currentSpinner) {
       this.currentSpinner.text = chalk.dim(message);
     }
@@ -79,7 +96,7 @@ class StreamingOutput {
   /**
    * Show tool execution
    */
-  showToolExecution(toolName, description) {
+  showToolExecution(toolName: string, description: string): void {
     this.stopThinking();
     process.stdout.write(this.renderer.renderToolUse(toolName, description));
 
@@ -89,7 +106,7 @@ class StreamingOutput {
   /**
    * Show tool result
    */
-  showToolResult(toolName, success = true) {
+  showToolResult(toolName: string, success = true): void {
     this.stopThinking();
     process.stdout.write(this.renderer.renderToolResult(toolName, success));
   }
@@ -97,15 +114,16 @@ class StreamingOutput {
   /**
    * Display error message
    */
-  showError(error) {
+  showError(error: string | { message?: string }): void {
     this.stopThinking();
-    console.error('\n' + chalk.rgb(239, 68, 68).bold('✗ ' + i18n.t('output.prefixes.error') + ' ') + chalk.white(error.message || error));
+    const msg = typeof error === 'string' ? error : (error.message || String(error));
+    console.error('\n' + chalk.rgb(239, 68, 68).bold('✗ ' + i18n.t('output.prefixes.error') + ' ') + chalk.white(msg));
   }
 
   /**
    * Display success message
    */
-  showSuccess(message) {
+  showSuccess(message: string): void {
     this.stopThinking();
     console.log('\n' + chalk.rgb(34, 197, 94).bold('✓ ' + i18n.t('output.prefixes.success') + ' ') + chalk.white(message));
   }
@@ -113,14 +131,14 @@ class StreamingOutput {
   /**
    * Display info message
    */
-  showInfo(message) {
+  showInfo(message: string): void {
     this.stopThinking();
     console.log('\n' + chalk.rgb(6, 182, 212).bold('ℹ ' + i18n.t('output.prefixes.info') + ' ') + chalk.white(message));
   }
 
-  showGitInfo(context) {
+  showGitInfo(context: GitChange[]): void {
     this.stopThinking();
-    context.map(change => {
+    context.map((change: GitChange) => {
       // Translate status
       const translatedStatus = i18n.t(`git.status.${change.status}`);
 
@@ -142,9 +160,9 @@ class StreamingOutput {
       const formattedStatus = statusColor(translatedStatus.padEnd(25));
 
       // Build stats string
-      const stats = [];
-      if (change.additions > 0) stats.push(chalk.green(`+${change.additions}`));
-      if (change.deletions > 0) stats.push(chalk.red(`-${change.deletions}`));
+      const stats: string[] = [];
+      if (change.additions && change.additions > 0) stats.push(chalk.green(`+${change.additions}`));
+      if (change.deletions && change.deletions > 0) stats.push(chalk.red(`-${change.deletions}`));
       const statsStr = stats.length > 0 ? ' ' + stats.join(' ') : '';
 
       console.log(`${formattedStatus} ${chalk.dim(change.value)}${statsStr}`);
@@ -154,7 +172,7 @@ class StreamingOutput {
   /**
    * Display warning message
    */
-  showWarning(message) {
+  showWarning(message: string): void {
     this.stopThinking();
     console.log('\n' + chalk.rgb(234, 179, 8).bold('⚠ ' + i18n.t('output.prefixes.warning') + ' ') + chalk.white(message));
   }
@@ -162,7 +180,7 @@ class StreamingOutput {
   /**
    * Display a separator
    */
-  showSeparator() {
+  showSeparator(): void {
     const width = process.stdout.columns || 80;
     console.log(chalk.rgb(100, 116, 139)('─'.repeat(width)));
   }
@@ -170,14 +188,14 @@ class StreamingOutput {
   /**
    * Clear the console
    */
-  clear() {
+  clear(): void {
     console.clear();
   }
 
   /**
    * Display welcome banner
    */
-  async showWelcome(appName = 'CoParrot', version = '1.0.1', config = {}) {
+  async showWelcome(appName = 'CoParrot', version = '1.0.1', config: AppConfig = {}): Promise<void> {
     this.clear();
     console.log();
 
@@ -207,30 +225,24 @@ class StreamingOutput {
 
   /**
    * Start a transient progress operation (disappears when done)
-   * @param {string} message - Initial message to display
-   * @returns {Object} - Operation controller with update, complete, error methods
    */
-  startTransientOperation(message) {
-    this.stopThinking(); // Stop any existing spinner
+  startTransientOperation(message: string): any {
+    this.stopThinking();
     return this.transientProgress.createOperation(message);
   }
 
   /**
    * Start a generating operation with shimmer effect (for AI content generation)
-   * @param {string} message - Initial message to display
-   * @returns {Object} - Operation controller with shimmer effects
    */
-  startGeneratingOperation(message) {
-    this.stopThinking(); // Stop any existing spinner
+  startGeneratingOperation(message: string): any {
+    this.stopThinking();
     return this.transientProgress.createGeneratingOperation(message);
   }
 
   /**
    * Show a simple transient message (for quick status updates)
-   * @param {string} message - Message to display
-   * @param {string} status - 'running', 'success', 'error'
    */
-  showTransientMessage(message, status = 'running') {
+  showTransientMessage(message: string, status: 'running' | 'success' | 'error' = 'running'): void {
     this.stopThinking();
     this.transientProgress.showTransient(message, status);
   }
@@ -238,7 +250,7 @@ class StreamingOutput {
   /**
    * Clear all transient messages
    */
-  clearTransient() {
+  clearTransient(): void {
     this.transientProgress.clearTransient();
   }
 }

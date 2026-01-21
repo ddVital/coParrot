@@ -1,5 +1,19 @@
 import i18n from '../services/i18n.js';
 import { parseFlag } from '../utils/args-parser.js';
+import type GitRepository from '../services/git.js';
+import type LLMOrchestrator from '../services/llms.js';
+
+interface ParsedCheckoutArgs {
+  branchName: string | null;
+  context: string | null;
+  shouldCreate: boolean;
+}
+
+interface ValidateCheckoutArgsInput {
+  branchName: string | null;
+  context: string | null;
+  hasCreateFlag: boolean;
+}
 
 /**
  * Handles git checkout operations
@@ -8,13 +22,17 @@ import { parseFlag } from '../utils/args-parser.js';
  * - checkout -b --context: Generate branch name from context
  * - checkout: Interactive branch selection (TODO)
  */
-export async function gitCheckout(repo, provider, args) {
+export async function gitCheckout(
+  repo: GitRepository,
+  provider: LLMOrchestrator,
+  args: string[]
+): Promise<void> {
   // Parse and validate arguments
   const parsedArgs = parseCheckoutArgs(args);
   if (!parsedArgs) return; // Validation failed, error already logged
 
   const { branchName, context, shouldCreate } = parsedArgs;
-  const recentBranches = await repo.getBranches({ count: 10 });
+  const recentBranches = repo.getBranches({ count: 10 });
 
   try {
     // Determine final branch name
@@ -32,7 +50,8 @@ export async function gitCheckout(repo, provider, args) {
       console.log("checking out to branch", finalBranchName);
     }
   } catch (error) {
-    console.error(i18n.t('output.prefixes.error'), error.message);
+    const err = error as Error;
+    console.error(i18n.t('output.prefixes.error'), err.message);
     return;
   }
 }
@@ -41,9 +60,9 @@ export async function gitCheckout(repo, provider, args) {
  * Parses and validates checkout command arguments
  * Returns null if validation fails
  */
-function parseCheckoutArgs(args) {
+function parseCheckoutArgs(args: string[]): ParsedCheckoutArgs | null {
   const hasCreateFlag = args.includes('-b');
-  const branchName = hasCreateFlag ? parseFlag(args, '-b')[0] : null;
+  const branchName = hasCreateFlag ? parseFlag(args, '-b')[0] || null : null;
 
   // Context can be multiple words, so join them with spaces
   const contextWords = parseFlag(args, '-c').length > 0
@@ -69,7 +88,11 @@ function parseCheckoutArgs(args) {
  * Validates checkout arguments and returns error message if invalid
  * Returns null if valid
  */
-function validateCheckoutArgs({ branchName, context, hasCreateFlag }) {
+function validateCheckoutArgs({
+  branchName,
+  context,
+  hasCreateFlag
+}: ValidateCheckoutArgsInput): string | null {
   // Plain checkout with no arguments - need interactive selector (not implemented yet)
   if (!hasCreateFlag && !branchName && !context) {
     return "checkout requires arguments. Use -b <name> to create a branch or -b --context to generate one";

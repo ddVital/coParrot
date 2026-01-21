@@ -5,11 +5,19 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+type TranslationValue = string | Record<string, unknown>;
+type Translations = Record<string, Record<string, unknown>>;
+
 /**
  * Simple i18n service for coParrot
  * Supports multiple languages with fallback to English
  */
 class I18nService {
+  translations: Translations;
+  currentLanguage: string;
+  supportedLanguages: string[];
+  fallbackLanguage: string;
+
   constructor() {
     this.translations = {};
     this.currentLanguage = 'en';
@@ -19,9 +27,8 @@ class I18nService {
 
   /**
    * Initialize the i18n service with a specific language
-   * @param {string} language - Language code (e.g., 'en', 'pt-BR', 'es')
    */
-  initialize(language = 'en') {
+  initialize(language: string = 'en'): void {
     this.currentLanguage = this.getSupportedLanguage(language);
     this.loadTranslations(this.currentLanguage);
 
@@ -33,10 +40,8 @@ class I18nService {
 
   /**
    * Validate and normalize language code
-   * @param {string} language - Language code
-   * @returns {string} Supported language code or fallback
    */
-  getSupportedLanguage(language) {
+  getSupportedLanguage(language: string): string {
     if (this.supportedLanguages.includes(language)) {
       return language;
     }
@@ -50,16 +55,16 @@ class I18nService {
 
   /**
    * Load translations for a specific language
-   * @param {string} language - Language code
    */
-  loadTranslations(language) {
+  loadTranslations(language: string): void {
     try {
-      const localesPath = join(__dirname, '..', '..', 'locales', `${language}.json`);
+      const localesPath = join(__dirname, '..', '..', '..', 'locales', `${language}.json`);
       const content = readFileSync(localesPath, 'utf8');
       this.translations[language] = JSON.parse(content);
     } catch (error) {
       if (language === this.fallbackLanguage) {
-        console.error(`Failed to load fallback language ${language}:`, error.message);
+        const err = error as Error;
+        console.error(`Failed to load fallback language ${language}:`, err.message);
         this.translations[language] = {};
       }
     }
@@ -67,11 +72,8 @@ class I18nService {
 
   /**
    * Get a translated string by key
-   * @param {string} key - Translation key (supports dot notation, e.g., 'cli.commands.help')
-   * @param {Object} params - Parameters for string interpolation
-   * @returns {string} Translated string
    */
-  t(key, params = {}) {
+  t(key: string, params: Record<string, unknown> = {}): string {
     let value = this.getNestedValue(this.translations[this.currentLanguage], key);
 
     // Fallback to default language if not found
@@ -86,24 +88,21 @@ class I18nService {
     }
 
     // Handle interpolation
-    return this.interpolate(value, params);
+    return this.interpolate(value as string, params);
   }
 
   /**
    * Get nested object value using dot notation
-   * @param {Object} obj - Object to search
-   * @param {string} key - Dot-notation key
-   * @returns {*} Value or undefined
    */
-  getNestedValue(obj, key) {
+  getNestedValue(obj: Record<string, unknown> | undefined, key: string): unknown {
     if (!obj) return undefined;
 
     const keys = key.split('.');
-    let result = obj;
+    let result: unknown = obj;
 
     for (const k of keys) {
-      if (result && typeof result === 'object' && k in result) {
-        result = result[k];
+      if (result && typeof result === 'object' && k in (result as Record<string, unknown>)) {
+        result = (result as Record<string, unknown>)[k];
       } else {
         return undefined;
       }
@@ -114,37 +113,29 @@ class I18nService {
 
   /**
    * Interpolate parameters into a string
-   * @param {string} str - Template string with {param} placeholders
-   * @param {Object} params - Parameters to interpolate
-   * @returns {string} Interpolated string
    */
-  interpolate(str, params) {
+  interpolate(str: string, params: Record<string, unknown>): string {
     if (typeof str !== 'string') {
       return str;
     }
 
     return str.replace(/\{(\w+)\}/g, (match, key) => {
-      return params[key] !== undefined ? params[key] : match;
+      return params[key] !== undefined ? String(params[key]) : match;
     });
   }
 
   /**
    * Get plural form based on count
-   * @param {string} key - Translation key
-   * @param {number} count - Count for plural logic
-   * @param {Object} params - Additional parameters
-   * @returns {string} Translated string in correct plural form
    */
-  plural(key, count, params = {}) {
+  plural(key: string, count: number, params: Record<string, unknown> = {}): string {
     const pluralKey = count === 1 ? `${key}.singular` : `${key}.plural`;
     return this.t(pluralKey, { ...params, count });
   }
 
   /**
    * Change the current language
-   * @param {string} language - New language code
    */
-  setLanguage(language) {
+  setLanguage(language: string): void {
     const newLanguage = this.getSupportedLanguage(language);
 
     if (newLanguage !== this.currentLanguage) {
@@ -157,27 +148,23 @@ class I18nService {
 
   /**
    * Get current language
-   * @returns {string} Current language code
    */
-  getLanguage() {
+  getLanguage(): string {
     return this.currentLanguage;
   }
 
   /**
    * Get list of supported languages
-   * @returns {Array<string>} Supported language codes
    */
-  getSupportedLanguages() {
+  getSupportedLanguages(): string[] {
     return [...this.supportedLanguages];
   }
 
   /**
    * Get language name in its native form
-   * @param {string} code - Language code
-   * @returns {string} Native language name
    */
-  getLanguageName(code) {
-    const names = {
+  getLanguageName(code: string): string {
+    const names: Record<string, string> = {
       'en': 'English',
       'pt-BR': 'Português (Brasil)',
       'es': 'Español'

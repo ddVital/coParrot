@@ -2,12 +2,13 @@
  * Utility functions for parsing command-line arguments
  */
 
+type FlagConfig = Record<string, string[]>;
+type ParsedFlags = Record<string, string[]>;
+
 /**
  * Removes surrounding quotes from a string
- * @param {string} str - String to clean
- * @returns {string} String without surrounding quotes
  */
-function stripQuotes(str) {
+function stripQuotes(str: string): string {
   if (typeof str !== 'string') {
     return str;
   }
@@ -23,19 +24,8 @@ function stripQuotes(str) {
 
 /**
  * Parses flag arguments from command args array
- * @param {string[]} args - Array of command arguments
- * @param {string} flagName - Name of the flag to parse (e.g., '--ignore')
- * @returns {string[]} Array of values for the flag (with quotes stripped)
- *
- * @example
- * parseFlag(['--ignore', 'file1.txt', 'file2.txt'], '--ignore')
- * // Returns: ['file1.txt', 'file2.txt']
- *
- * @example
- * parseFlag(['--ignore', '"*.md"', '--other'], '--ignore')
- * // Returns: ['*.md']
  */
-export function parseFlag(args, flagName) {
+export function parseFlag(args: string[], flagName: string): string[] {
   if (!args || !Array.isArray(args) || args.length === 0) {
     return [];
   }
@@ -46,7 +36,7 @@ export function parseFlag(args, flagName) {
     return [];
   }
 
-  const values = [];
+  const values: string[] = [];
 
   // Collect all values after the flag until we hit another flag or end of args
   for (let i = flagIndex + 1; i < args.length; i++) {
@@ -62,16 +52,8 @@ export function parseFlag(args, flagName) {
 
 /**
  * Checks if a flag is present in args
- * @param {string[]} args - Array of command arguments
- * @param {string|string[]} flags - Flag name(s) to check
- * @returns {boolean} True if flag is present
- *
- * @example
- * hasFlag(['--ignore', 'file.txt'], '--ignore') // true
- * hasFlag(['--ignore', 'file.txt'], ['-i', '--ignore']) // true
- * hasFlag(['file.txt'], '--ignore') // false
  */
-export function hasFlag(args, flags) {
+export function hasFlag(args: string[], flags: string | string[]): boolean {
   if (!args || !Array.isArray(args)) {
     return false;
   }
@@ -83,19 +65,9 @@ export function hasFlag(args, flags) {
 
 /**
  * Parses multiple flags from args
- * @param {string[]} args - Array of command arguments
- * @param {Object} flagConfig - Object mapping flag names to aliases
- * @returns {Object} Object with flag names as keys and values as arrays
- *
- * @example
- * parseFlags(['--ignore', '*.md', '-v'], {
- *   ignore: ['--ignore', '-i'],
- *   verbose: ['--verbose', '-v']
- * })
- * // Returns: { ignore: ['*.md'], verbose: [] }
  */
-export function parseFlags(args, flagConfig) {
-  const result = {};
+export function parseFlags(args: string[], flagConfig: FlagConfig): ParsedFlags {
+  const result: ParsedFlags = {};
 
   for (const [flagName, aliases] of Object.entries(flagConfig)) {
     // Find which alias (if any) is present
@@ -113,20 +85,13 @@ export function parseFlags(args, flagConfig) {
 
 /**
  * Removes flags and their values from args array
- * @param {string[]} args - Array of command arguments
- * @param {string[]} flags - Flags to remove
- * @returns {string[]} Filtered args without the specified flags
- *
- * @example
- * removeFlags(['file.txt', '--ignore', '*.md', 'other.txt'], ['--ignore'])
- * // Returns: ['file.txt', 'other.txt']
  */
-export function removeFlags(args, flags) {
+export function removeFlags(args: string[], flags: string[]): string[] {
   if (!args || !Array.isArray(args)) {
     return [];
   }
 
-  const result = [];
+  const result: string[] = [];
   let skipNext = false;
 
   for (let i = 0; i < args.length; i++) {

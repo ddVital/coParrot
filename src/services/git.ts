@@ -2,12 +2,75 @@ import { execSync } from 'child_process';
 import path from 'path';
 import i18n from './i18n.js';
 
+// Types
+export interface GitChange {
+  status: string;
+  statusCode: string;
+  value: string;
+  checked: boolean;
+  additions: number;
+  deletions: number;
+}
+
+interface NumStatEntry {
+  additions: number;
+  deletions: number;
+}
+
+interface DiffOptions {
+  staged?: boolean;
+  numstat?: boolean;
+  nameOnly?: boolean;
+  compact?: boolean;
+  upstream?: boolean;
+  revisionRange?: string;
+}
+
+interface LogOptions {
+  limit?: number;
+  oneline?: boolean;
+  format?: string | null;
+  since?: string | null;
+  author?: string | null;
+}
+
+interface PushOptions {
+  remote?: string;
+  branch?: string | null;
+  force?: boolean;
+  setUpstream?: boolean;
+}
+
+interface PullOptions {
+  remote?: string;
+  branch?: string | null;
+  rebase?: boolean;
+}
+
+interface BranchOptions {
+  remote?: boolean;
+  all?: boolean;
+  count?: number;
+}
+
+interface CommitOptions {
+  amend?: boolean;
+  noVerify?: boolean;
+  date?: Date | null;
+}
+
+interface GitExecError extends Error {
+  stderr?: string;
+}
+
 /**
  * Git Repository Manager
  * Provides a clean interface for git operations with context and error handling
  */
 class GitRepository {
-  constructor(repoPath = process.cwd()) {
+  repoPath: string;
+
+  constructor(repoPath: string = process.cwd()) {
     this.repoPath = repoPath;
     this.validateRepo();
   }
@@ -15,7 +78,7 @@ class GitRepository {
   /**
    * Validate that this is a git repository
    */
-  validateRepo() {
+  validateRepo(): void {
     try {
       this.exec('git rev-parse --git-dir');
     } catch (error) {
@@ -25,10 +88,8 @@ class GitRepository {
 
   /**
    * Execute git command in repository context
-   * @param {string} command - Git command to execute
-   * @returns {string} Command output
    */
-  exec(command) {
+  exec(command: string): string {
     try {
       return execSync(command, {
         cwd: this.repoPath,
@@ -36,25 +97,24 @@ class GitRepository {
         stdio: ['pipe', 'pipe', 'pipe']
       });
     } catch (error) {
+      const err = error as GitExecError;
       // Extract just the error message without stack trace
-      const message = error.stderr?.trim() || error.message;
+      const message = err.stderr?.trim() || err.message;
       throw new Error(i18n.t('git.errors.commandFailed', { message }));
     }
   }
 
   /**
    * Get repository status (short format)
-   * @returns {string} Git status output
    */
-  status() {
+  status(): string {
     return this.exec('git status -u --short');
   }
 
   /**
    * Get detailed status with line counts and file information
-   * @returns {Array<Object>} Array of change objects
    */
-  getDetailedStatus() {
+  getDetailedStatus(): GitChange[] {
     const status = this.status();
 
     if (!status) {
@@ -79,11 +139,8 @@ class GitRepository {
 
   /**
    * Get diff for specific files or all changes
-   * @param {Array<string>} files - Files to diff (empty for all)
-   * @param {Object} options - Diff options
-   * @returns {string} Diff output
    */
-  diff(files = [], options = {}) {
+  diff(files: string[] = [], options: DiffOptions = {}): string {
     const { staged = false, numstat = false, nameOnly = false, compact = false, upstream = false, revisionRange = "" } = options;
 
     let cmd = 'git diff';
@@ -100,10 +157,8 @@ class GitRepository {
 
   /**
    * Get commit log
-   * @param {Object} options - Log options
-   * @returns {string} Log output
    */
-  log(options = {}) {
+  log(options: LogOptions = {}): string {
     const {
       limit = 10,
       oneline = true,
@@ -129,10 +184,8 @@ class GitRepository {
 
   /**
    * Stage files
-   * @param {Array<string>|string} files - Files to stage
-   * @returns {string} Command output
    */
-  add(files) {
+  add(files: string[] | string): string {
     if (!files || (Array.isArray(files) && files.length === 0)) {
       return '';
     }
@@ -143,18 +196,15 @@ class GitRepository {
 
   /**
    * Stage all changes
-   * @returns {string} Command output
    */
-  addAll() {
+  addAll(): string {
     return this.exec('git add -A');
   }
 
   /**
    * Unstage files
-   * @param {Array<string>|string} files - Files to unstage
-   * @returns {string} Command output
    */
-  restore(files) {
+  restore(files: string[] | string): string {
     if (!files || (Array.isArray(files) && files.length === 0)) {
       return '';
     }
@@ -163,18 +213,14 @@ class GitRepository {
     return this.exec(`git restore --staged ${fileList.map(f => `"${f}"`).join(' ')}`);
   }
 
-  restoreAll() {
+  restoreAll(): string {
     return this.exec('git restore --staged .')
   }
 
   /**
    * Create commit
-   * @param {string} message - Commit message
-   * @param {Object} options - Commit options
-   * @param {Date} options.date - Custom commit date (sets both author and committer date)
-   * @returns {string} Command output
    */
-  commit(message, options = {}) {
+  commit(message: string, options: CommitOptions = {}): string {
     const { amend = false, noVerify = false, date = null } = options;
 
     // Escape message properly
@@ -200,8 +246,9 @@ class GitRepository {
           }
         });
       } catch (error) {
-        const message = error.stderr?.trim() || error.message;
-        throw new Error(i18n.t('git.errors.commandFailed', { message }));
+        const err = error as GitExecError;
+        const errMessage = err.stderr?.trim() || err.message;
+        throw new Error(i18n.t('git.errors.commandFailed', { message: errMessage }));
       }
     }
 
@@ -210,10 +257,8 @@ class GitRepository {
 
   /**
    * Push to remote
-   * @param {Object} options - Push options
-   * @returns {string} Command output
    */
-  push(options = {}) {
+  push(options: PushOptions = {}): string {
     const {
       remote = 'origin',
       branch = null,
@@ -231,10 +276,8 @@ class GitRepository {
 
   /**
    * Pull from remote
-   * @param {Object} options - Pull options
-   * @returns {string} Command output
    */
-  pull(options = {}) {
+  pull(options: PullOptions = {}): string {
     const { remote = 'origin', branch = null, rebase = false } = options;
 
     let cmd = `git pull ${remote}`;
@@ -246,9 +289,8 @@ class GitRepository {
 
   /**
    * Get current branch name
-   * @returns {string} Branch name
    */
-  getCurrentBranch() {
+  getCurrentBranch(): string {
     try {
       return this.exec('git branch --show-current');
     } catch (error) {
@@ -258,10 +300,8 @@ class GitRepository {
 
   /**
    * Get all branches
-   * @param {Object} options - Branch options
-   * @returns {Array<string>} Branch names
    */
-  getBranches(options = {}) {
+  getBranches(options: BranchOptions = {}): string[] {
     const { remote = false, all = false, count = 0 } = options;
 
     let cmd = 'git branch';
@@ -278,11 +318,8 @@ class GitRepository {
 
   /**
    * Create new branch
-   * @param {string} branchName - Name of new branch
-   * @param {boolean} checkout - Whether to checkout the new branch
-   * @returns {string} Command output
    */
-  createBranch(branchName, checkout = false) {
+  createBranch(branchName: string, checkout: boolean = false): string {
     if (checkout) {
       return this.exec(`git checkout -b ${branchName}`);
     }
@@ -291,19 +328,15 @@ class GitRepository {
 
   /**
    * Checkout branch
-   * @param {string} branchName - Branch to checkout
-   * @returns {string} Command output
    */
-  checkout(branchName) {
+  checkout(branchName: string): string {
     return this.exec(`git checkout ${branchName}`);
   }
 
   /**
    * Get remote URL
-   * @param {string} remote - Remote name
-   * @returns {string} Remote URL
    */
-  getRemoteUrl(remote = 'origin') {
+  getRemoteUrl(remote: string = 'origin'): string {
     try {
       return this.exec(`git remote get-url ${remote}`);
     } catch (error) {
@@ -313,9 +346,8 @@ class GitRepository {
 
   /**
    * Get all remotes
-   * @returns {Array<Object>} Array of {name, url} objects
    */
-  getRemotes() {
+  getRemotes(): Array<{ name: string; url: string }> {
     try {
       const output = this.exec('git remote -v');
       const remotes = new Map();
@@ -335,18 +367,16 @@ class GitRepository {
 
   /**
    * Check if working directory is clean
-   * @returns {boolean} True if clean, false otherwise
    */
-  isClean() {
+  isClean(): boolean {
     const status = this.status();
     return status.length === 0;
   }
 
   /**
    * Get staged files
-   * @returns {Array<string>} File paths
    */
-  getStagedFiles() {
+  getStagedFiles(): string[] {
     try {
       const output = this.exec('git diff --cached --name-only');
       return output ? output.split('\n').filter(Boolean) : [];
@@ -357,9 +387,8 @@ class GitRepository {
 
   /**
    * Get unstaged files
-   * @returns {Array<string>} File paths
    */
-  getUnstagedFiles() {
+  getUnstagedFiles(): string[] {
     try {
       const output = this.exec('git diff --name-only');
       return output ? output.split('\n').filter(Boolean) : [];
@@ -370,9 +399,8 @@ class GitRepository {
 
   /**
    * Get untracked files
-   * @returns {Array<string>} File paths
    */
-  getUntrackedFiles() {
+  getUntrackedFiles(): string[] {
     try {
       const output = this.exec('git ls-files --others --exclude-standard');
       return output ? output.split('\n').filter(Boolean) : [];
@@ -383,9 +411,8 @@ class GitRepository {
 
   /**
    * Get total commit count
-   * @returns {number} Number of commits
    */
-  getCommitCount() {
+  getCommitCount(): number {
     try {
       const count = this.exec('git rev-list --count HEAD');
       return parseInt(count) || 0;
@@ -396,9 +423,8 @@ class GitRepository {
 
   /**
    * Get last commit message
-   * @returns {string} Last commit message
    */
-  getLastCommitMessage() {
+  getLastCommitMessage(): string {
     try {
       return this.exec('git log -1 --pretty=%B');
     } catch (error) {
@@ -408,10 +434,8 @@ class GitRepository {
 
   /**
    * Get last commit hash
-   * @param {boolean} short - Use short hash
-   * @returns {string} Commit hash
    */
-  getLastCommitHash(short = true) {
+  getLastCommitHash(short: boolean = true): string {
     try {
       const format = short ? '--short' : '';
       return this.exec(`git rev-parse ${format} HEAD`);
@@ -422,17 +446,15 @@ class GitRepository {
 
   /**
    * Check if repository has uncommitted changes
-   * @returns {boolean} True if there are uncommitted changes
    */
-  hasUncommittedChanges() {
+  hasUncommittedChanges(): boolean {
     return !this.isClean();
   }
 
   /**
    * Check if repository has unpushed commits
-   * @returns {boolean} True if there are unpushed commits
    */
-  hasUnpushedCommits() {
+  hasUnpushedCommits(): boolean {
     try {
       const output = this.exec('git log @{u}.. --oneline');
       return output.length > 0;
@@ -444,28 +466,23 @@ class GitRepository {
 
   /**
    * Stash changes
-   * @param {string} message - Stash message
-   * @returns {string} Command output
    */
-  stash(message = '') {
+  stash(message: string = ''): string {
     const cmd = message ? `git stash save "${message}"` : 'git stash';
     return this.exec(cmd);
   }
 
   /**
    * Apply stash
-   * @param {number} index - Stash index (default: 0)
-   * @returns {string} Command output
    */
-  stashPop(index = 0) {
+  stashPop(index: number = 0): string {
     return this.exec(`git stash pop stash@{${index}}`);
   }
 
   /**
    * List stashes
-   * @returns {Array<string>} Stash list
    */
-  stashList() {
+  stashList(): string[] {
     try {
       const output = this.exec('git stash list');
       return output ? output.split('\n').filter(Boolean) : [];
@@ -478,7 +495,7 @@ class GitRepository {
    * Parse status output into structured data
    * @private
    */
-  _parseStatus(status, numstat) {
+  _parseStatus(status: string, numstat: string): GitChange[] {
     const lines = status.split('\n').filter(Boolean);
     const stats = this._parseNumStat(numstat);
 
@@ -503,8 +520,8 @@ class GitRepository {
    * Parse numstat output
    * @private
    */
-  _parseNumStat(numstat) {
-    const stats = {};
+  _parseNumStat(numstat: string): Record<string, NumStatEntry> {
+    const stats: Record<string, NumStatEntry> = {};
 
     if (!numstat) return stats;
 
@@ -528,8 +545,8 @@ class GitRepository {
    * Map git status codes to human-readable types with staging info
    * @private
    */
-  _getChangeType(status) {
-    const map = {
+  _getChangeType(status: string): string {
+    const map: Record<string, string> = {
       // Staged changes (first char is the change)
       'M ': 'staged-modified',
       'A ': 'staged-added',

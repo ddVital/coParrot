@@ -4,16 +4,25 @@
  * without additional explanations, formatting, or conversational text.
  */
 
+interface SystemPromptOptions {
+  convention?: string;
+  style?: string;
+  baseInstructions?: string;
+  customInstructions?: string | null;
+  recentBranches?: string[];
+  verbose?: boolean;
+}
+
 /**
  * Builds a commit message prompt based on the convention type
- * @param {string} convention - The commit convention type (e.g., 'conventional', 'semantic', 'gitmoji')
- * @param {string} baseInstructions - Custom instructions from user config
- * @param {string} additionalInstructions - Runtime custom instructions
- * @param {boolean} verbose - Whether to generate detailed commit messages with extended descriptions
- * @returns {string} The complete system prompt
  */
-export function buildCommitPrompt(convention = 'conventional', baseInstructions = '', additionalInstructions = '', verbose = false) {
-  const conventionGuides = {
+export function buildCommitPrompt(
+  convention: string = 'conventional',
+  baseInstructions: string = '',
+  additionalInstructions: string = '',
+  verbose: boolean = false
+): string {
+  const conventionGuides: Record<string, string> = {
     conventional: `Format: <type>[scope]: <description>
 Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore
 Example: "feat(auth): add user login"`,
@@ -48,14 +57,14 @@ Scopes: i18n, auth, api, ui (not data/utils/core). Imperative mood, <72 chars${v
 
 /**
  * Builds a branch name prompt based on the naming convention
- * @param {string} convention - The branch naming convention (e.g., 'gitflow', 'github', 'gitlab')
- * @param {string} baseInstructions - Custom instructions from user config
- * @param {string} additionalInstructions - Runtime custom instructions
- * @param {Array} recentBranches - Recent branch names from the repository (optional)
- * @returns {string} The complete system prompt
  */
-export function buildBranchPrompt(convention = 'gitflow', baseInstructions = '', additionalInstructions = '', recentBranches = []) {
-  const conventionGuides = {
+export function buildBranchPrompt(
+  convention: string = 'gitflow',
+  baseInstructions: string = '',
+  additionalInstructions: string = '',
+  recentBranches: string[] = []
+): string {
+  const conventionGuides: Record<string, string> = {
     gitflow: `Format: <type>/<description>
 Types: feat, fix, hotfix, chore, revert, tests, release
 Ex: feat/user-authentication`,
@@ -76,26 +85,26 @@ Ex: JIRA-123/add-export`,
   const guide = conventionGuides[convention] || conventionGuides.gitflow;
 
   const branchesSection = recentBranches?.length
-    ? `\nRecent branches (match pattern):\n${recentBranches.map(b => `- ${b}`).join('\n')}`
+    ? `\nRecent branches (infer naming style - separator, casing, prefix patterns):\n${recentBranches.map(b => `- ${b}`).join('\n')}\nIgnore env branches (main, master, dev, qa, staging, prod, release, hotfix-only names) when inferring style.`
     : '';
 
   return `Generate branch name. Output ONLY the name, no quotes/explanations.
 
 ${guide}
-Rules: lowercase, kebab-case, 3-50 chars${branchesSection}${baseInstructions}${additionalInstructions}
+Rules: lowercase, 3-50 chars. Match project's separator style from recent branches (- or _) if available.${branchesSection}${baseInstructions}${additionalInstructions}
 
 Task:`;
 }
 
 /**
  * Builds a PR description prompt based on the style
- * @param {string} style - The PR description style (e.g., 'detailed', 'concise', 'template')
- * @param {string} baseInstructions - Custom instructions from user config
- * @param {string} additionalInstructions - Runtime custom instructions
- * @returns {string} The complete system prompt
  */
-export function buildPRPrompt(style = 'detailed', baseInstructions = '', additionalInstructions = '') {
-  const styleGuides = {
+export function buildPRPrompt(
+  style: string = 'detailed',
+  baseInstructions: string = '',
+  additionalInstructions: string = ''
+): string {
+  const styleGuides: Record<string, string> = {
     detailed: `Include: summary, detailed changes list, testing steps, breaking changes, related issues`,
     concise: `Include: brief summary, key changes bullets, quick test notes`,
     template: `## Description\n[Summary]\n## Changes\n- [List]\n## Testing\n- [Steps]\n## Notes\n- [Context]`
@@ -112,12 +121,12 @@ Analyze commits, cohesive narrative, highlight key changes.${baseInstructions}${
 
 /**
  * Builds a code review prompt
- * @param {string} style - The review style (e.g., 'detailed', 'quick')
- * @param {string} baseInstructions - Custom instructions from user config
- * @param {string} additionalInstructions - Runtime custom instructions
- * @returns {string} The complete system prompt
  */
-export function buildCodeReviewPrompt(style = 'detailed', baseInstructions = '', additionalInstructions = '') {
+export function buildCodeReviewPrompt(
+  style: string = 'detailed',
+  baseInstructions: string = '',
+  additionalInstructions: string = ''
+): string {
   return `Generate code review in markdown. Output ONLY review content.
 
 Focus: bugs, quality, perf, security, tests, docs. Style: ${style}${baseInstructions}${additionalInstructions}`;
@@ -125,11 +134,8 @@ Focus: bugs, quality, perf, security, tests, docs. Style: ${style}${baseInstruct
 
 /**
  * Generic helper to build system prompts
- * @param {string} type - The type of prompt (commit, branch, pr, review)
- * @param {Object} options - Configuration options
- * @returns {string} The complete system prompt
  */
-export function buildSystemPrompt(type, options = {}) {
+export function buildSystemPrompt(type: string, options: SystemPromptOptions = {}): string {
   const {
     convention,
     style,

@@ -1,18 +1,18 @@
-import micromatch from 'micromatch';
+import micromatch, { Options as MicromatchOptions } from 'micromatch';
+
+interface ValidationResult {
+  valid: string[];
+  invalid: string[];
+}
 
 /**
  * Filters an array of file paths based on glob patterns
- * @param {string[]} files - Array of file paths to filter
- * @param {string[]} patterns - Array of glob patterns to match against
- * @param {Object} options - Micromatch options
- * @returns {string[]} Filtered array of files that don't match any pattern
- *
- * @example
- * const files = ['src/index.js', 'src/test.spec.js', 'README.md'];
- * const filtered = filterByGlob(files, ['*.md', '*.spec.js']);
- * // Returns: ['src/index.js']
  */
-export function filterByGlob(files, patterns, options = {}) {
+export function filterByGlob(
+  files: string[],
+  patterns: string[],
+  options: MicromatchOptions = {}
+): string[] {
   if (!files || files.length === 0) {
     return [];
   }
@@ -29,21 +29,17 @@ export function filterByGlob(files, patterns, options = {}) {
 
 /**
  * Checks if a file path matches any of the provided glob patterns
- * @param {string} filePath - File path to check
- * @param {string[]} patterns - Array of glob patterns
- * @param {Object} options - Micromatch options
- * @returns {boolean} True if file matches any pattern
- *
- * @example
- * matchesAnyPattern('src/test.spec.js', ['*.spec.js', '*.test.js']); // true
- * matchesAnyPattern('src/index.js', ['*.spec.js', '*.test.js']); // false
  */
-export function matchesAnyPattern(filePath, patterns, options = {}) {
+export function matchesAnyPattern(
+  filePath: string,
+  patterns: string[],
+  options: MicromatchOptions = {}
+): boolean {
   if (!filePath || !patterns || patterns.length === 0) {
     return false;
   }
 
-  const defaultOptions = {
+  const defaultOptions: MicromatchOptions = {
     dot: true,           // Match dotfiles
     nocase: false,       // Case-sensitive by default
     matchBase: true,     // Allow matching basename only
@@ -55,17 +51,12 @@ export function matchesAnyPattern(filePath, patterns, options = {}) {
 
 /**
  * Gets files that match the provided glob patterns (inverse of filterByGlob)
- * @param {string[]} files - Array of file paths to filter
- * @param {string[]} patterns - Array of glob patterns to match
- * @param {Object} options - Micromatch options
- * @returns {string[]} Array of files that match any pattern
- *
- * @example
- * const files = ['src/index.js', 'src/test.spec.js', 'README.md'];
- * const matched = matchByGlob(files, ['*.md', '*.spec.js']);
- * // Returns: ['src/test.spec.js', 'README.md']
  */
-export function matchByGlob(files, patterns, options = {}) {
+export function matchByGlob(
+  files: string[],
+  patterns: string[],
+  options: MicromatchOptions = {}
+): string[] {
   if (!files || files.length === 0) {
     return [];
   }
@@ -74,7 +65,7 @@ export function matchByGlob(files, patterns, options = {}) {
     return [];
   }
 
-  const defaultOptions = {
+  const defaultOptions: MicromatchOptions = {
     dot: true,
     nocase: false,
     matchBase: true,
@@ -86,14 +77,8 @@ export function matchByGlob(files, patterns, options = {}) {
 
 /**
  * Normalizes file paths for consistent matching
- * @param {string} filePath - File path to normalize
- * @returns {string} Normalized file path
- *
- * @example
- * normalizeFilePath('./src/index.js'); // 'src/index.js'
- * normalizeFilePath('src\\index.js'); // 'src/index.js'
  */
-export function normalizeFilePath(filePath) {
+export function normalizeFilePath(filePath: string): string {
   if (!filePath) return '';
 
   return filePath
@@ -104,10 +89,8 @@ export function normalizeFilePath(filePath) {
 
 /**
  * Normalizes an array of file paths
- * @param {string[]} files - Array of file paths
- * @returns {string[]} Array of normalized file paths
  */
-export function normalizeFilePaths(files) {
+export function normalizeFilePaths(files: string[]): string[] {
   if (!files || !Array.isArray(files)) {
     return [];
   }
@@ -117,20 +100,14 @@ export function normalizeFilePaths(files) {
 
 /**
  * Validates glob patterns to ensure they're properly formatted
- * @param {string[]} patterns - Array of glob patterns to validate
- * @returns {Object} Validation result with valid and invalid patterns
- *
- * @example
- * validatePatterns(['*.js', '**\/invalid\/', 'valid/**']);
- * // Returns: { valid: ['*.js', 'valid/**'], invalid: ['**\/invalid\/'] }
  */
-export function validatePatterns(patterns) {
+export function validatePatterns(patterns: string[]): ValidationResult {
   if (!patterns || !Array.isArray(patterns)) {
     return { valid: [], invalid: [] };
   }
 
-  const valid = [];
-  const invalid = [];
+  const valid: string[] = [];
+  const invalid: string[] = [];
 
   patterns.forEach(pattern => {
     try {
@@ -156,9 +133,9 @@ export const COMMON_IGNORE_PATTERNS = {
   dependencies: ['**/node_modules/**', '**/vendor/**'],
   logs: ['**/*.log', '**/logs/**'],
   temp: ['**/*.tmp', '**/temp/**', '**/.cache/**'],
-  all: function() {
+  all: function(): string[] {
     return Object.values(this)
-      .filter(v => Array.isArray(v))
+      .filter((v): v is string[] => Array.isArray(v))
       .flat();
   }
 };

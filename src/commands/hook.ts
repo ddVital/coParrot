@@ -4,6 +4,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import i18n from '../services/i18n.js';
+import type CLI from '../lib/cli.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +15,7 @@ const COPARROT_BIN = path.resolve(__dirname, '../../bin/index.js');
 /**
  * Hook management command - install/uninstall git hooks globally
  */
-export async function hookCommand(args, cli) {
+export async function hookCommand(args: string[], cli: CLI): Promise<void> {
   const subcommand = args[0];
 
   switch (subcommand) {
@@ -33,7 +34,7 @@ export async function hookCommand(args, cli) {
 /**
  * Install git hook in current repository
  */
-async function installHook(cli) {
+async function installHook(cli: CLI): Promise<void> {
   try {
     // Check if we're in a git repository
     let gitRoot;
@@ -129,14 +130,15 @@ fi
     console.log();
 
   } catch (error) {
-    cli.streamer.showError(i18n.t('git.hook.install.failed', { error: error.message }));
+    const err = error as Error;
+    cli.streamer.showError(i18n.t('git.hook.install.failed', { error: err.message }));
   }
 }
 
 /**
  * Uninstall git hook from current repository
  */
-async function uninstallHook(cli) {
+async function uninstallHook(cli: CLI): Promise<void> {
   try {
     // Check if we're in a git repository
     let gitRoot;
@@ -169,6 +171,7 @@ async function uninstallHook(cli) {
     }
 
   } catch (error) {
-    cli.streamer.showError(i18n.t('git.hook.uninstall.failed', { error: error.message }));
+    const err = error as Error;
+    cli.streamer.showError(i18n.t('git.hook.uninstall.failed', { error: err.message }));
   }
 }

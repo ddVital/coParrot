@@ -1,23 +1,31 @@
 import { marked } from 'marked';
+// @ts-ignore - marked-terminal has no type declarations
 import { markedTerminal } from 'marked-terminal';
 import { highlight } from 'cli-highlight';
 import chalk from 'chalk';
+
+interface RendererOptions {
+  width?: number;
+  showSectionPrefix?: boolean;
+}
 
 /**
  * Custom renderer for markdown with syntax highlighting
  */
 class MarkdownRenderer {
-  constructor(options = {}) {
+  options: Required<RendererOptions>;
+
+  constructor(options: RendererOptions = {}) {
     this.options = {
       width: options.width || process.stdout.columns || 80,
       showSectionPrefix: options.showSectionPrefix !== false,
       ...options
-    };
+    } as Required<RendererOptions>;
 
     // Configure marked with terminal renderer
     marked.use(markedTerminal({
       width: this.options.width - 4, // Account for padding
-      code: (code, lang) => {
+      code: (code: string, lang: string) => {
         try {
           const highlighted = highlight(code, {
             language: lang || 'javascript',
@@ -48,14 +56,14 @@ class MarkdownRenderer {
           return this._formatCodeBlock(code, lang);
         }
       },
-      codespan: (code) => chalk.bgGray.white(` ${code} `),
-      strong: (text) => chalk.bold(text),
-      em: (text) => chalk.italic(text),
-      link: (href, title, text) => chalk.cyan.underline(text),
-      list: (body, ordered) => body,
-      listitem: (text) => `  ${chalk.gray('•')} ${text}`,
-      paragraph: (text) => text + '\n',
-      heading: (text, level) => {
+      codespan: (code: string) => chalk.bgGray.white(` ${code} `),
+      strong: (text: string) => chalk.bold(text),
+      em: (text: string) => chalk.italic(text),
+      link: (href: string, title: string, text: string) => chalk.cyan.underline(text),
+      list: (body: string, ordered: boolean) => body,
+      listitem: (text: string) => `  ${chalk.gray('•')} ${text}`,
+      paragraph: (text: string) => text + '\n',
+      heading: (text: string, level: number) => {
         switch (level) {
           case 1:
             return chalk.bold.white(text) + '\n';
@@ -73,7 +81,7 @@ class MarkdownRenderer {
   /**
    * Format a code block with border and language label
    */
-  _formatCodeBlock(code, lang) {
+  _formatCodeBlock(code: string, lang?: string): string {
     const lines = code.split('\n');
     const topBorder = chalk.gray('┌' + '─'.repeat(this.options.width - 6) + '┐');
     const bottomBorder = chalk.gray('└' + '─'.repeat(this.options.width - 6) + '┘');
@@ -89,9 +97,9 @@ class MarkdownRenderer {
   /**
    * Render markdown text to terminal
    */
-  render(markdown) {
+  render(markdown: string): string {
     try {
-      return marked(markdown);
+      return marked(markdown) as string;
     } catch (error) {
       console.error(chalk.red('Error rendering markdown:'), error);
       return markdown;
@@ -101,7 +109,7 @@ class MarkdownRenderer {
   /**
    * Render a tool use block
    */
-  renderToolUse(toolName, description) {
+  renderToolUse(toolName: string, description: string): string {
     const icon = this._getToolIcon(toolName);
     const line = chalk.gray('─'.repeat(this.options.width - 4));
 
@@ -111,7 +119,7 @@ class MarkdownRenderer {
   /**
    * Render a tool result
    */
-  renderToolResult(toolName, success = true) {
+  renderToolResult(toolName: string, success: boolean = true): string {
     const icon = success ? chalk.green('✓') : chalk.red('✗');
     const status = success ? chalk.green('Success') : chalk.red('Failed');
 
@@ -121,8 +129,8 @@ class MarkdownRenderer {
   /**
    * Get icon for tool type
    */
-  _getToolIcon(toolName) {
-    const icons = {
+  _getToolIcon(toolName: string): string {
+    const icons: Record<string, string> = {
       'Read': '📖',
       'Write': '✏️',
       'Edit': '✏️',

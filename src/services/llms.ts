@@ -1,20 +1,59 @@
 
 import OpenAI from 'openai';
-import {GoogleGenAI} from '@google/genai';
-
-import { confirm, select, input } from '@inquirer/prompts';
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
+import { select, input } from '@inquirer/prompts';
 import StreamingOutput from '../lib/streamer.js';
 import chalk from 'chalk';
 import { buildSystemPrompt } from './prompts.js';
 import i18n from './i18n.js';
 import axios from 'axios';
-import logUpdate from "log-update";
+
+
+interface LLMOptions {
+    provider: 'openai' | 'claude' | 'gemini' | 'ollama';
+    apiKey?: string;
+    ollamaUrl?: string;
+    model?: string;
+    instructions?: {
+      commit?: string;
+      review?: string;
+      pr?: string;
+      custom?: string;
+      commitConvention?: {
+        type?: string;
+        verboseCommits?: boolean;
+      };
+      prMessageStyle?: string;
+      customInstructions?: string;
+    };
+    skipApproval?: boolean;
+  }
+
+interface ApprovalResult {
+    action: 'approve' | 'retry' | 'retry_with_instructions';
+    customInstructions?: string;
+  }
+
+interface GenerateOptions {
+    loadingMessage?: string;
+    customInstructions?: string | null;
+  }
+
+  interface BranchContext {
+    description?: string;
+    recentBranches?: string[];
+  }
 
 class LLMOrchestrator {
-  constructor(options = {}) {
+  options: LLMOptions;
+  client: OpenAI | Anthropic | GoogleGenAI | string | undefined;
+  streamer: any; // TODO: type properly when streamer.ts is migrated
+
+  constructor(options: Partial<LLMOptions> = {}) {
     this.options = {
-      provider: options.provider || 'openAI',
-      ollamaUrl: options.ollamaUrl, 
+      provider: options.provider || 'openai',
+      ollamaUrl: options.ollamaUrl,
       apiKey: options.apiKey,
       model: options.model,
       instructions: options.instructions || {},
@@ -23,7 +62,7 @@ class LLMOrchestrator {
     };
 
     this.client = this._initializeClient();
-    this.streamer = new StreamingOutput();
+    this.streamer = new StreamingOutput(null);
   }
 
   _initializeClient() {
@@ -45,32 +84,42 @@ class LLMOrchestrator {
     }
   }
 
-  async call(context, type, customInstructions = null) {
-    // Chamar o método específico do provider
+  async call(context: unknown, type: string, customInstructions: string | null = null): Promise<string> {
+    let result: string | null = null;
+
     switch (this.options.provider.toLowerCase()) {
       case 'openai':
-        return this._callOpenAI(context, type, customInstructions);
+        result = await this._callOpenAI(context, type, customInstructions);
+        break;
       case 'claude':
-        return this._callClaude(context, type, customInstructions);
+        result = await this._callClaude(context, type, customInstructions);
+        break;
       case 'gemini':
-        return this._callGemini(context, type, customInstructions);
+        result = await this._callGemini(context, type, customInstructions);
+        break;
       case 'ollama':
-        return this._callLlama(context, type, customInstructions);
+        result = await this._callLlama(context, type, customInstructions);
+        break;
       default:
         throw new Error(`Unsupported provider: ${this.options.provider}`);
     }
+
+    if (!result) {
+      throw new Error('LLM returned empty response');
+    }
+    return result;
   }
 
-  async approveLLMResponse(response) {
+  async approveLLMResponse(response: string): Promise<ApprovalResult> {
     this._showLLMResponse(response);
- 
+
     // Present options to the user
-    const action = await select({
+    const action = await select<'approve' | 'retry' | 'retry_with_instructions'>({
       message: i18n.t('llm.approvalPrompt'),
       choices: [
-        { name: i18n.t('llm.approvalOptions.approve'), value: 'approve' },
-        { name: i18n.t('llm.approvalOptions.retry'), value: 'retry' },
-        { name: i18n.t('llm.approvalOptions.retryWithInstructions'), value: 'retry_with_instructions' }
+        { name: i18n.t('llm.approvalOptions.approve'), value: 'approve' as const },
+        { name: i18n.t('llm.approvalOptions.retry'), value: 'retry' as const },
+        { name: i18n.t('llm.approvalOptions.retryWithInstructions'), value: 'retry_with_instructions' as const }
       ]
     }, {
       clearPromptOnDone: true
@@ -88,7 +137,7 @@ class LLMOrchestrator {
     return { action };
   }
 
-  async generateWithApproval(type, context, options = {}) {
+  async generateWithApproval(type: string, context: unknown, options: GenerateOptions = {}): Promise<string | null> {
     const {
       loadingMessage = 'Generating...',
       customInstructions = null
@@ -105,7 +154,7 @@ class LLMOrchestrator {
         this.streamer.stopThinking();
 
         const result = this.options.skipApproval
-          ? { action: 'approve' }
+          ? { action: 'approve' as const }
           : await this.approveLLMResponse(response);
 
         if (result.action === 'approve') {
@@ -114,7 +163,7 @@ class LLMOrchestrator {
         } else if (result.action === 'retry') {
           currentInstructions = null;
         } else if (result.action === 'retry_with_instructions') {
-          currentInstructions = result.customInstructions;
+          currentInstructions = result.customInstructions ?? null;
         }
       } catch (error) {
         throw error;
@@ -125,14 +174,14 @@ class LLMOrchestrator {
   }
 
   // Then usage becomes simple:
-  async generateCommitMessage(context, customInstructions = null) {
+  async generateCommitMessage(context: unknown, customInstructions: string | null = null): Promise<string | null> {
     return this.generateWithApproval('commit', context, {
       loadingMessage: 'Generating commit message...',
       customInstructions
     });
   }
 
-  async generatePrMessage(context, customInstructions = null) {
+  async generatePrMessage(context: unknown, customInstructions: string | null = null): Promise<string | null> {
     return this.generateWithApproval('pr', context, {
       loadingMessage: 'Generating commit message...',
       customInstructions
@@ -144,24 +193,26 @@ class LLMOrchestrator {
    * @param {*} context - The diff context
    * @returns {Promise<string>} The generated commit message
    */
-  async generateCommitMessageDirect(context) {
+  async generateCommitMessageDirect(context: unknown): Promise<string> {
     return await this.call(context, 'commit', null);
   }
 
-  async generateBranchName(context, customInstructions = null) {
+  async generateBranchName(context: unknown, customInstructions: string | null = null): Promise<string | null> {
     return this.generateWithApproval('branch', context, {
       loadingMessage: 'Generating branch name...',
       customInstructions
     });
   }
 
-  async _callOpenAI(context, type, customInstructions = null) {
+  async _callOpenAI(context: unknown, type: string, customInstructions: string | null = null): Promise<string | null> {
     // For branch type, extract description from context object
-    const userContent = type === 'branch' && context?.description
-      ? context.description
+    const ctx = context as BranchContext;
+    const userContent = type === 'branch' && ctx?.description
+      ? ctx.description
       : JSON.stringify(context);
 
-    const response = await this.client.chat.completions.create({
+    const client = this.client as OpenAI;
+    const response = await client.chat.completions.create({
       model: this.options.model || 'gpt-4',
       messages: [
         {
@@ -178,13 +229,15 @@ class LLMOrchestrator {
     return response.choices[0].message.content;
   }
 
-  async _callClaude(context, type, customInstructions = null) {
+  async _callClaude(context: unknown, type: string, customInstructions: string | null = null): Promise<string | null> {
     // For branch type, extract description from context object
-    const userContent = type === 'branch' && context?.description
-      ? context.description
+    const ctx = context as BranchContext;
+    const userContent = type === 'branch' && ctx?.description
+      ? ctx.description
       : JSON.stringify(context);
 
-    const response = await this.client.messages.create({
+    const client = this.client as Anthropic;
+    const response = await client.messages.create({
       model: this.options.model || 'claude-3-5-sonnet-20241022',
       max_tokens: 1024,
       system: this._buildSystemPrompt(type, customInstructions, context),
@@ -196,29 +249,33 @@ class LLMOrchestrator {
       ]
     });
 
-    return response.content[0].text;
+    const textBlock = response.content[0] as { type: 'text'; text: string };
+    return textBlock.text;
   }
 
-  async _callGemini(context, type, customInstructions = null) {
+  async _callGemini(context: unknown, type: string, customInstructions: string | null = null): Promise<string | null> {
     // For branch type, extract description from context object
-    const userContent = type === 'branch' && context?.description
-      ? context.description
+    const ctx = context as BranchContext;
+    const userContent = type === 'branch' && ctx?.description
+      ? ctx.description
       : JSON.stringify(context);
 
     const prompt = `${this._buildSystemPrompt(type, customInstructions, context)}\n\n${userContent}`;
 
-    const response = await this.client.models.generateContent({
+    const client = this.client as GoogleGenAI;
+    const response = await client.models.generateContent({
       model: this.options.model || 'gemini-2.5-flash',
       contents: prompt
     })
 
-    return response.text();
+    return response.text ?? null;
   }
 
-  async _callLlama(context, type, customInstructions = null) {
+  async _callLlama(context: unknown, type: string, customInstructions: string | null = null): Promise<string | null> {
     // For branch type, extract description from context object
-    const userContent = type === 'branch' && context?.description
-      ? context.description
+    const ctx = context as BranchContext;
+    const userContent = type === 'branch' && ctx?.description
+      ? ctx.description
       : JSON.stringify(context);
 
     const prompt = `${this._buildSystemPrompt(type, customInstructions, context)}\n\n${userContent}`;
@@ -228,23 +285,26 @@ class LLMOrchestrator {
     // const response = await this.client
   }
 
-  async _handleLocalLlmCall(prompt) {
+  async _handleLocalLlmCall(prompt: string): Promise<string | null> {
     console.log(prompt)
 
     try {
       const response = await axios.post(`${this.options.ollamaUrl}/api/generate`, {
-        model: this.options.model, // hard coded before we can implement a more scalable solution
+        model: this.options.model,
         prompt: prompt,
         stream: false
       })
 
       return response.data.response;
     } catch (error) {
-      if (error.code === "ECONNREFUSED") {
-        throw error.code
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === "ECONNREFUSED") {
+        throw err.code;
       }
+      return null;
     }
   }
+
   /**
    * Builds the system prompt based on the request type
    * @param {string} type - The type of request (commit, branch, pr, review)
@@ -252,25 +312,29 @@ class LLMOrchestrator {
    * @param {Object} context - The context object (may contain recentBranches for branch type)
    * @returns {string} The complete system prompt
    */
-  _buildSystemPrompt(type, customInstructions = null, context = null) {
-    const baseInstructions = this.options.instructions.customInstructions || '';
+  _buildSystemPrompt(type: string, customInstructions: string | null = null, context: unknown = null): string {
+    const baseInstructions = this.options.instructions?.customInstructions || '';
+    const ctx = context as BranchContext;
 
     // Determine convention/style based on type
-    let convention, style, recentBranches, verbose;
+    let convention: string | undefined;
+    let style: string | undefined;
+    let recentBranches: string[] | undefined;
+    let verbose: boolean | undefined;
 
     switch (type) {
       case 'commit':
-        convention = this.options.instructions.commitConvention?.type || 'conventional';
-        verbose = this.options.instructions.commitConvention?.verboseCommits || false;
+        convention = this.options.instructions?.commitConvention?.type || 'conventional';
+        verbose = this.options.instructions?.commitConvention?.verboseCommits || false;
         break;
       case 'branch':
         // Use commit convention for branches, default to gitflow if not set
-        convention = this.options.instructions.commitConvention?.type || 'gitflow';
+        convention = this.options.instructions?.commitConvention?.type || 'gitflow';
         // Extract recent branches from context if available
-        recentBranches = context?.recentBranches || [];
+        recentBranches = ctx?.recentBranches || [];
         break;
       case 'pr':
-        style = this.options.instructions.prMessageStyle || 'detailed';
+        style = this.options.instructions?.prMessageStyle || 'detailed';
         break;
     }
 
@@ -285,7 +349,7 @@ class LLMOrchestrator {
     });
   }
 
-  _showLLMResponse(response) {
+  _showLLMResponse(response: string): void {
     console.log('\n' + chalk.grey('## ') + chalk.white(response) + '\n');
   }
 }

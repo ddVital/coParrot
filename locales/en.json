@@ -251,10 +251,10 @@
   },
   "output": {
     "prefixes": {
-      "success": "✓",
+      "success": "Success",
       "error": "Error:",
-      "info": "ℹ",
-      "warning": "⚠"
+      "info": "Info:",
+      "warning": "Warning: "
     },
     "running": "Running {toolName}..."
   },

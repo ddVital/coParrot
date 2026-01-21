@@ -2,11 +2,35 @@ import chalk from 'chalk';
 import logUpdate from 'log-update';
 import gradient from 'gradient-string';
 
+interface ProgressStep {
+  id: string;
+  message: string;
+  status: 'pending' | 'running' | 'success' | 'error' | 'generating';
+  substeps: string[];
+}
+
+interface ProgressOperation {
+  update: (message: string, substeps?: string[]) => void;
+  complete: (message?: string | null) => void;
+  error: (message?: string | null) => void;
+  substep: (substepMessage: string) => void;
+  enableShimmer: () => void;
+  disableShimmer: () => void;
+}
+
+type SpinnerStyle = 'dots' | 'line' | 'circle' | 'square' | 'arrow' | 'pulse' | 'bounce';
+
 /**
  * Handles transient progress messages that can be updated and cleared
  * Supports multi-step progress with tree-style indicators and animations
  */
 class TransientProgress {
+  steps: ProgressStep[];
+  isActive: boolean;
+  animationFrame: number;
+  animationInterval: ReturnType<typeof setInterval> | null;
+  shimmerOffset: number;
+
   constructor() {
     this.steps = [];
     this.isActive = false;
@@ -18,7 +42,7 @@ class TransientProgress {
   /**
    * Spinner frames for different animation styles
    */
-  static SPINNERS = {
+  static SPINNERS: Record<SpinnerStyle, string[]> = {
     dots: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
     line: ['|', '/', '─', '\\'],
     circle: ['◐', '◓', '◑', '◒'],
@@ -31,7 +55,7 @@ class TransientProgress {
   /**
    * Start a new progress session
    */
-  start() {
+  start(): void {
     this.steps = [];
     this.isActive = true;
     this.startAnimation();
@@ -40,7 +64,7 @@ class TransientProgress {
   /**
    * Start animation loop
    */
-  startAnimation() {
+  startAnimation(): void {
     if (this.animationInterval) return;
 
     this.animationInterval = setInterval(() => {
@@ -53,7 +77,7 @@ class TransientProgress {
   /**
    * Stop animation loop
    */
-  stopAnimation() {
+  stopAnimation(): void {
     if (this.animationInterval) {
       clearInterval(this.animationInterval);
       this.animationInterval = null;
@@ -62,15 +86,16 @@ class TransientProgress {
 
   /**
    * Add or update a progress step
-   * @param {string} id - Unique identifier for this step
-   * @param {string} message - The message to display
-   * @param {string} status - 'pending', 'running', 'success', 'error'
-   * @param {Array} substeps - Optional array of substep strings
    */
-  updateStep(id, message, status = 'running', substeps = []) {
+  updateStep(
+    id: string,
+    message: string,
+    status: ProgressStep['status'] = 'running',
+    substeps: string[] = []
+  ): void {
     const existingIndex = this.steps.findIndex(step => step.id === id);
 
-    const step = {
+    const step: ProgressStep = {
       id,
       message,
       status,
@@ -88,10 +113,8 @@ class TransientProgress {
 
   /**
    * Mark a step as completed
-   * @param {string} id - Step identifier
-   * @param {string} message - Optional final message
    */
-  complete(id, message = null) {
+  complete(id: string, message: string | null = null): void {
     const step = this.steps.find(s => s.id === id);
     if (step) {
       step.status = 'success';
@@ -104,10 +127,8 @@ class TransientProgress {
 
   /**
    * Mark a step as failed
-   * @param {string} id - Step identifier
-   * @param {string} message - Optional error message
    */
-  error(id, message = null) {
+  error(id: string, message: string | null = null): void {
     const step = this.steps.find(s => s.id === id);
     if (step) {
       step.status = 'error';
@@ -120,9 +141,8 @@ class TransientProgress {
 
   /**
    * Remove a step from the list
-   * @param {string} id - Step identifier
    */
-  removeStep(id) {
+  removeStep(id: string): void {
     this.steps = this.steps.filter(s => s.id !== id);
     this.render();
   }
@@ -130,7 +150,7 @@ class TransientProgress {
   /**
    * Apply shimmer effect to text (parrot-themed gradient)
    */
-  applyShimmer(text) {
+  applyShimmer(text: string): string {
     // Parrot brand colors: greens, yellows, and vibrant accents
     const colors = [
       [34, 197, 94],   // Parrot green
@@ -154,7 +174,7 @@ class TransientProgress {
   /**
    * Get current spinner frame
    */
-  getSpinner(style = 'dots') {
+  getSpinner(style: SpinnerStyle = 'dots'): string {
     const frames = TransientProgress.SPINNERS[style] || TransientProgress.SPINNERS.dots;
     return frames[this.animationFrame % frames.length];
   }
@@ -162,16 +182,16 @@ class TransientProgress {
   /**
    * Render the current progress state
    */
-  render() {
+  render(): void {
     if (!this.isActive) return;
 
-    const lines = [];
+    const lines: string[] = [];
 
     this.steps.forEach((step, index) => {
       const isLast = index === this.steps.length - 1;
 
       // Choose icon and styling based on status
-      let icon, displayText;
+      let icon: string, displayText: string;
       switch (step.status) {
         case 'success':
           icon = chalk.rgb(34, 197, 94)('✓');
@@ -215,9 +235,8 @@ class TransientProgress {
 
   /**
    * Clear all transient messages and persist final state
-   * @param {boolean} persist - If true, print final state before clearing
    */
-  stop(persist = false) {
+  stop(persist: boolean = false): void {
     if (!this.isActive) return;
 
     this.stopAnimation();
@@ -237,10 +256,8 @@ class TransientProgress {
 
   /**
    * Quick helper: Show a single transient message
-   * @param {string} message - Message to display
-   * @param {string} status - Status type
    */
-  showTransient(message, status = 'running') {
+  showTransient(message: string, status: ProgressStep['status'] = 'running'): void {
     this.start();
     this.updateStep('temp', message, status);
   }
@@ -248,7 +265,7 @@ class TransientProgress {
   /**
    * Quick helper: Clear the transient message
    */
-  clearTransient() {
+  clearTransient(): void {
     this.stop(false);
   }
 
@@ -256,26 +273,26 @@ class TransientProgress {
    * Show a multi-step operation with automatic progress
    * Returns an object with update methods
    */
-  createOperation(initialMessage, options = {}) {
+  createOperation(initialMessage: string, options: { useShimmer?: boolean } = {}): ProgressOperation {
     const { useShimmer = false } = options;
     const operationId = `op_${Date.now()}`;
     this.start();
     this.updateStep(operationId, initialMessage, useShimmer ? 'generating' : 'running');
 
     return {
-      update: (message, substeps = []) => {
+      update: (message: string, substeps: string[] = []) => {
         this.updateStep(operationId, message, useShimmer ? 'generating' : 'running', substeps);
       },
-      complete: (message = null) => {
+      complete: (message: string | null = null) => {
         this.complete(operationId, message);
         // Auto-clear after a brief moment to show success
         setTimeout(() => this.stop(false), 500);
       },
-      error: (message = null) => {
+      error: (message: string | null = null) => {
         this.error(operationId, message);
         setTimeout(() => this.stop(true), 1000); // Persist errors longer
       },
-      substep: (substepMessage) => {
+      substep: (substepMessage: string) => {
         const step = this.steps.find(s => s.id === operationId);
         if (step) {
           step.substeps = step.substeps || [];
@@ -305,7 +322,7 @@ class TransientProgress {
   /**
    * Create a loading operation with shimmer effect (for AI generation)
    */
-  createGeneratingOperation(initialMessage) {
+  createGeneratingOperation(initialMessage: string): ProgressOperation {
     return this.createOperation(initialMessage, { useShimmer: true });
   }
 }
