@@ -243,6 +243,11 @@
     "customInstructionsPrompt": "Ingresa tus instrucciones personalizadas:",
     "generationComplete": "Generación completa"
   },
+  "pr": {
+    "uncommittedChanges": "Tienes cambios sin commitear. Por favor, haz commit o stash antes de crear un PR.",
+    "noBranchDiff": "No hay commits por delante de {base}. No hay nada para abrir un PR.",
+    "created": "¡Pull request creado exitosamente!"
+  },
   "common": {
     "yes": "Sí",
     "no": "No",
