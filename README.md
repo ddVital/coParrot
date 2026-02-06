@@ -21,16 +21,18 @@ coParrot is an AI-powered CLI tool that makes Git operations smarter and more in
 
 ## 📦 Installation
 
-### Global Installation (Recommended)
+### Quick Install (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ddVital/coParrot/main/install.sh | bash
+```
+
+The installer will check for Node.js, help you install it if needed, and set up coParrot globally.
+
+### npm
 
 ```bash
 npm install -g coparrot
-```
-
-### Local Installation
-
-```bash
-npm install coparrot
 ```
 
 ## 🚀 Quick Start
