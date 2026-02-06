@@ -31,6 +31,7 @@ class CLI {
   isRunning: boolean;
   lastCtrlC: number;
   private _gitRepository: any;
+  private _currentBranch: string | null;
 
   constructor(options: CLIOptions = {}) {
     this.options = {
@@ -52,6 +53,7 @@ class CLI {
     this.isRunning = false;
     this.lastCtrlC = 0;
     this._gitRepository = null;
+    this._currentBranch = null;
   }
 
   /**
@@ -59,6 +61,7 @@ class CLI {
    */
   async start(): Promise<void> {
     await this.streamer.showWelcome(this.options.appName, this.options.version, this.config);
+    this._currentBranch = this._detectBranch();
 
     this.isRunning = true;
 
@@ -93,6 +96,14 @@ class CLI {
   async mainLoop(): Promise<void> {
     while (this.isRunning) {
       try {
+        // Refresh header if branch changed externally
+        const branch = this._detectBranch();
+        if (branch && this._currentBranch && branch !== this._currentBranch) {
+          this._currentBranch = branch;
+          this.streamer.clear();
+          await this.streamer.showWelcome(this.options.appName, this.options.version, this.config);
+        }
+
         const userInput = await this.getUserInput();
 
         if (!userInput || userInput.trim() === '') {
@@ -178,7 +189,7 @@ class CLI {
       'add',
       'commit',
       'squawk',
-      'pr',
+      'open-pr',
       'hook',
       'help',
       'clear',
@@ -245,6 +256,20 @@ class CLI {
   }
 
   /**
+   * Detect current git branch
+   */
+  private _detectBranch(): string | null {
+    const GitRepo = this.getGitRepository();
+    if (!GitRepo) return null;
+    try {
+      const repo = new GitRepo();
+      return repo.getCurrentBranch();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Gets git repository class (lazy loaded to avoid circular dependency)
    */
   getGitRepository(): any {
@@ -281,6 +306,7 @@ class CLI {
       case 'clear':
         this.streamer.clear();
         await this.streamer.showWelcome(this.options.appName, this.options.version, this.config);
+        this._currentBranch = this._detectBranch();
         break;
 
       case 'history':
