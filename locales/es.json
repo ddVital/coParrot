@@ -44,6 +44,14 @@
       "assistant": "Asistente"
     }
   },
+  "gh": {
+    "errors": {
+      "notinstalled": "GitHub CLI (gh) no está instalado. Instálalo desde: https://cli.github.com/",
+      "notauthenticated": "GitHub CLI no está autenticado. Por favor, ejecuta 'gh auth login' primero.",
+      "invalidcli": "GitHub CLI (gh) no está instalado o no está autenticado. Por favor, ejecuta 'gh auth login' primero.",
+      "commandfailed": "El comando de GitHub CLI falló: {message}"
+    }
+  },
   "git": {
     "add": {
       "selectFiles": "Elige archivos para preparar para commit (Espacio para seleccionar, Enter para confirmar)",

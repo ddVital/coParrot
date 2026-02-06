@@ -44,6 +44,14 @@
       "assistant": "Assistant"
     }
   },
+  "gh": {
+    "errors": {
+      "notinstalled": "GitHub CLI (gh) is not installed. Install it from: https://cli.github.com/",
+      "notauthenticated": "GitHub CLI is not authenticated. Please run 'gh auth login' first.",
+      "invalidcli": "GitHub CLI (gh) is not installed or not authenticated. Please run 'gh auth login' first.",
+      "commandfailed": "GitHub CLI command failed: {message}"
+    }
+  },
   "git": {
     "hook": {
       "unknownSubcommand": "Unknown hook subcommand: {subcommand}",
