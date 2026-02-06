@@ -643,7 +643,8 @@ async function stageFiles(repo: GitRepository, files: string[]): Promise<void> {
  * Generates a commit message for staged changes silently
  */
 async function generateCommitMessage(repo: GitRepository, provider: LLMOrchestrator): Promise<string> {
-  const context = repo.diff([], { staged: true });
+  const diff = repo.diff([], { staged: true });
+  const context = { diff, stagedFiles: repo.getStagedFiles() };
   const commitMessage = await provider.generateCommitMessage(context);
   return commitMessage || '';
 }
