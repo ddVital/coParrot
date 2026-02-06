@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import { select, input } from '@inquirer/prompts';
 import StreamingOutput from '../lib/streamer.js';
 import chalk from 'chalk';
-import { buildSystemPrompt } from './prompts.js';
+import { buildPrompts, PromptPair } from './prompts.js';
 import i18n from './i18n.js';
 import axios from 'axios';
 
@@ -17,7 +17,6 @@ interface LLMOptions {
     model?: string;
     instructions?: {
       commit?: string;
-      review?: string;
       pr?: string;
       custom?: string;
       commitConvention?: {
@@ -40,15 +39,10 @@ interface GenerateOptions {
     customInstructions?: string | null;
   }
 
-  interface BranchContext {
-    description?: string;
-    recentBranches?: string[];
-  }
-
 class LLMOrchestrator {
   options: LLMOptions;
   client: OpenAI | Anthropic | GoogleGenAI | string | undefined;
-  streamer: any; // TODO: type properly when streamer.ts is migrated
+  streamer: StreamingOutput;
 
   constructor(options: Partial<LLMOptions> = {}) {
     this.options = {
@@ -68,37 +62,34 @@ class LLMOrchestrator {
   _initializeClient() {
     switch (this.options.provider.toLowerCase()) {
       case 'openai':
-        console.log("op")
-        // return new OpenAI({ apiKey: this.options.apiKey });
-        break;
+        return new OpenAI({ apiKey: this.options.apiKey });
       case 'claude':
         return new Anthropic({ apiKey: this.options.apiKey });
-        break;
       case 'gemini':
         return new GoogleGenAI({ apiKey: this.options.apiKey });
-        break;
       case 'ollama':
-        return "local"
+        return 'local';
       default:
         throw new Error(`Unsupported provider: ${this.options.provider}`);
     }
   }
 
   async call(context: unknown, type: string, customInstructions: string | null = null): Promise<string> {
+    const prompts = this._buildPrompts(type, context, customInstructions);
     let result: string | null = null;
 
     switch (this.options.provider.toLowerCase()) {
       case 'openai':
-        result = await this._callOpenAI(context, type, customInstructions);
+        result = await this._callOpenAI(prompts);
         break;
       case 'claude':
-        result = await this._callClaude(context, type, customInstructions);
+        result = await this._callClaude(prompts);
         break;
       case 'gemini':
-        result = await this._callGemini(context, type, customInstructions);
+        result = await this._callGemini(prompts);
         break;
       case 'ollama':
-        result = await this._callLlama(context, type, customInstructions);
+        result = await this._callOllama(prompts);
         break;
       default:
         throw new Error(`Unsupported provider: ${this.options.provider}`);
@@ -166,6 +157,7 @@ class LLMOrchestrator {
           currentInstructions = result.customInstructions ?? null;
         }
       } catch (error) {
+        this.streamer.stopThinking();
         throw error;
       }
     }
@@ -173,7 +165,6 @@ class LLMOrchestrator {
     return response;
   }
 
-  // Then usage becomes simple:
   async generateCommitMessage(context: unknown, customInstructions: string | null = null): Promise<string | null> {
     return this.generateWithApproval('commit', context, {
       loadingMessage: 'Generating commit message...',
@@ -183,15 +174,13 @@ class LLMOrchestrator {
 
   async generatePrMessage(context: unknown, customInstructions: string | null = null): Promise<string | null> {
     return this.generateWithApproval('pr', context, {
-      loadingMessage: 'Generating commit message...',
+      loadingMessage: 'Generating PR description...',
       customInstructions
     });
   }
 
   /**
    * Generate commit message directly without UI/approval (for hooks)
-   * @param {*} context - The diff context
-   * @returns {Promise<string>} The generated commit message
    */
   async generateCommitMessageDirect(context: unknown): Promise<string> {
     return await this.call(context, 'commit', null);
@@ -204,122 +193,14 @@ class LLMOrchestrator {
     });
   }
 
-  async _callOpenAI(context: unknown, type: string, customInstructions: string | null = null): Promise<string | null> {
-    // For branch type, extract description from context object
-    const ctx = context as BranchContext;
-    const userContent = type === 'branch' && ctx?.description
-      ? ctx.description
-      : JSON.stringify(context);
-
-    const client = this.client as OpenAI;
-    const response = await client.chat.completions.create({
-      model: this.options.model || 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: this._buildSystemPrompt(type, customInstructions, context)
-        },
-        {
-          role: 'user',
-          content: userContent
-        }
-      ]
-    });
-
-    return response.choices[0].message.content;
-  }
-
-  async _callClaude(context: unknown, type: string, customInstructions: string | null = null): Promise<string | null> {
-    // For branch type, extract description from context object
-    const ctx = context as BranchContext;
-    const userContent = type === 'branch' && ctx?.description
-      ? ctx.description
-      : JSON.stringify(context);
-
-    const client = this.client as Anthropic;
-    const response = await client.messages.create({
-      model: this.options.model || 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      system: this._buildSystemPrompt(type, customInstructions, context),
-      messages: [
-        {
-          role: 'user',
-          content: userContent
-        }
-      ]
-    });
-
-    const textBlock = response.content[0] as { type: 'text'; text: string };
-    return textBlock.text;
-  }
-
-  async _callGemini(context: unknown, type: string, customInstructions: string | null = null): Promise<string | null> {
-    // For branch type, extract description from context object
-    const ctx = context as BranchContext;
-    const userContent = type === 'branch' && ctx?.description
-      ? ctx.description
-      : JSON.stringify(context);
-
-    const prompt = `${this._buildSystemPrompt(type, customInstructions, context)}\n\n${userContent}`;
-
-    const client = this.client as GoogleGenAI;
-    const response = await client.models.generateContent({
-      model: this.options.model || 'gemini-2.5-flash',
-      contents: prompt
-    })
-
-    return response.text ?? null;
-  }
-
-  async _callLlama(context: unknown, type: string, customInstructions: string | null = null): Promise<string | null> {
-    // For branch type, extract description from context object
-    const ctx = context as BranchContext;
-    const userContent = type === 'branch' && ctx?.description
-      ? ctx.description
-      : JSON.stringify(context);
-
-    const prompt = `${this._buildSystemPrompt(type, customInstructions, context)}\n\n${userContent}`;
-    const response = await this._handleLocalLlmCall(prompt)
-
-    return response
-    // const response = await this.client
-  }
-
-  async _handleLocalLlmCall(prompt: string): Promise<string | null> {
-    console.log(prompt)
-
-    try {
-      const response = await axios.post(`${this.options.ollamaUrl}/api/generate`, {
-        model: this.options.model,
-        prompt: prompt,
-        stream: false
-      })
-
-      return response.data.response;
-    } catch (error) {
-      const err = error as NodeJS.ErrnoException;
-      if (err.code === "ECONNREFUSED") {
-        throw err.code;
-      }
-      return null;
-    }
-  }
-
   /**
-   * Builds the system prompt based on the request type
-   * @param {string} type - The type of request (commit, branch, pr, review)
-   * @param {string|null} customInstructions - Additional custom instructions
-   * @param {Object} context - The context object (may contain recentBranches for branch type)
-   * @returns {string} The complete system prompt
+   * Build prompts using the centralized prompt builder
    */
-  _buildSystemPrompt(type: string, customInstructions: string | null = null, context: unknown = null): string {
+  _buildPrompts(type: string, context: unknown, customInstructions: string | null = null): PromptPair {
     const baseInstructions = this.options.instructions?.customInstructions || '';
-    const ctx = context as BranchContext;
 
-    // Determine convention/style based on type
     let convention: string | undefined;
     let style: string | undefined;
-    let recentBranches: string[] | undefined;
     let verbose: boolean | undefined;
 
     switch (type) {
@@ -328,25 +209,101 @@ class LLMOrchestrator {
         verbose = this.options.instructions?.commitConvention?.verboseCommits || false;
         break;
       case 'branch':
-        // Use commit convention for branches, default to gitflow if not set
         convention = this.options.instructions?.commitConvention?.type || 'gitflow';
-        // Extract recent branches from context if available
-        recentBranches = ctx?.recentBranches || [];
         break;
       case 'pr':
         style = this.options.instructions?.prMessageStyle || 'detailed';
         break;
     }
 
-    // Build the prompt using the centralized prompt builder
-    return buildSystemPrompt(type, {
+    return buildPrompts(type, context, {
       convention,
       style,
       baseInstructions,
       customInstructions,
-      recentBranches,
       verbose
     });
+  }
+
+  /**
+   * OpenAI API call with separate system and user prompts
+   */
+  async _callOpenAI(prompts: PromptPair): Promise<string | null> {
+    const client = this.client as OpenAI;
+    const response = await client.chat.completions.create({
+      model: this.options.model || 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: prompts.system
+        },
+        {
+          role: 'user',
+          content: prompts.user
+        }
+      ]
+    });
+
+    return response.choices[0].message.content;
+  }
+
+  /**
+   * Claude API call with separate system and user prompts
+   */
+  async _callClaude(prompts: PromptPair): Promise<string | null> {
+    const client = this.client as Anthropic;
+    const response = await client.messages.create({
+      model: this.options.model || 'claude-3-5-sonnet-20241022',
+      max_tokens: 1024,
+      system: prompts.system,
+      messages: [
+        {
+          role: 'user',
+          content: prompts.user
+        }
+      ]
+    });
+
+    const textBlock = response.content[0] as { type: 'text'; text: string };
+    return textBlock.text;
+  }
+
+  /**
+   * Gemini API call with separate system instruction and user content
+   */
+  async _callGemini(prompts: PromptPair): Promise<string | null> {
+    const client = this.client as GoogleGenAI;
+    const response = await client.models.generateContent({
+      model: this.options.model || 'gemini-2.0-flash',
+      config: {
+        systemInstruction: prompts.system
+      },
+      contents: prompts.user
+    });
+
+    return response.text ?? null;
+  }
+
+  /**
+   * Ollama API call with separate system and user prompts
+   */
+  async _callOllama(prompts: PromptPair): Promise<string | null> {
+    try {
+      const response = await axios.post(`${this.options.ollamaUrl}/api/generate`, {
+        model: this.options.model,
+        system: prompts.system,
+        prompt: prompts.user,
+        stream: false
+      });
+
+      return response.data.response;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ECONNREFUSED') {
+        throw new Error('Ollama server not running. Start it with: ollama serve');
+      }
+      throw error;
+    }
   }
 
   _showLLMResponse(response: string): void {
