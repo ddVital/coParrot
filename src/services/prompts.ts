@@ -1,10 +1,14 @@
 /**
- * System prompts for different LLM tasks
- * These prompts are designed to ensure the AI returns ONLY the requested information
- * without additional explanations, formatting, or conversational text.
+ * System and user prompts for different LLM tasks
+ * Each action returns separate system and user prompts for proper LLM API usage.
  */
 
-interface SystemPromptOptions {
+export interface PromptPair {
+  system: string;
+  user: string;
+}
+
+export interface SystemPromptOptions {
   convention?: string;
   style?: string;
   baseInstructions?: string;
@@ -13,30 +17,57 @@ interface SystemPromptOptions {
   verbose?: boolean;
 }
 
+export interface CommitContext {
+  diff: string;
+  stagedFiles?: string[];
+}
+
+export interface BranchContext {
+  description: string;
+  recentBranches?: string[];
+}
+
+export interface PRRepository {
+  name: string;
+  language?: string;
+}
+
+export interface PRContext {
+  repository: PRRepository;
+  headBranch: string;
+  baseBranch: string;
+  commits: string[];
+  diff: string;
+  template?: string;
+}
+
 /**
- * Builds a commit message prompt based on the convention type
+ * Builds commit message prompts (system + user)
  */
-export function buildCommitPrompt(
+export function buildCommitPrompts(
+  context: CommitContext,
   convention: string = 'conventional',
   baseInstructions: string = '',
-  additionalInstructions: string = '',
+  customInstructions: string = '',
   verbose: boolean = false
-): string {
+): PromptPair {
   const conventionGuides: Record<string, string> = {
-    conventional: `Format: <type>[scope]: <description>
-Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore
-Example: "feat(auth): add user login"`,
+    conventional: `Format: <type>(<scope>): <description>
+Types: ${JSON.stringify({
+  feat: 'New feature', fix: 'Bug fix', docs: 'Documentation',
+  style: 'Formatting (no logic change)', refactor: 'Restructure without behavior change',
+  perf: 'Performance', test: 'Tests', build: 'Build/dependencies',
+  ci: 'CI config', chore: 'Maintenance'
+})}`,
 
     semantic: `Format: <emoji> <type>: <subject>
-Emojis: ✨ feat, 🐛 fix, 📝 docs, ♻️ refactor
-Example: "✨ feat: implement authentication"`,
+Emojis: ✨ feat, 🐛 fix, 📝 docs, ♻️ refactor, ⚡ perf, ✅ test`,
 
-    gitmoji: `Start with gitmoji: ✨ feature, 🐛 fix, 📝 docs, ♻️ refactor
-Example: "✨ Add dark mode toggle"`,
+    gitmoji: `Start with a gitmoji emoji matching the change type.
+Common: ✨ feature, 🐛 fix, 📝 docs, ♻️ refactor, ⚡ perf, 🔥 remove, ✅ test, ⬆️ upgrade dep`,
 
-    angular: `Format: <type>(scope): <subject>
-Types: build, ci, docs, feat, fix, perf, refactor, style, test
-Example: "feat(core): implement lazy loading"`,
+    angular: `Format: <type>(<scope>): <subject>
+Types: build, ci, docs, feat, fix, perf, refactor, style, test`,
 
     custom: `Follow the custom format from config.`
   };
@@ -45,97 +76,205 @@ Example: "feat(core): implement lazy loading"`,
 
   const verboseHint = verbose
     ? '\n- REQUIRED: Add extended body after blank line explaining what changed and why'
-    : '\n- Add extended body (blank line + details) only for complex/breaking changes';
+    : '';
 
-  return `Generate commit message. Output ONLY the message, no quotes/explanations.
+  const additionalInstructions = customInstructions
+    ? `\nUser notes: ${customInstructions}`
+    : '';
+
+  const system = `Output ONLY the commit message. No quotes, explanations, or wrapping.
 
 ${guide}
 
-Classify by CONTENT not syntax: new feature/field=feat, broken behavior fixed=fix, restructure=refactor
-Scopes: i18n, auth, api, ui (not data/utils/core). Imperative mood, <72 chars${verboseHint}${baseInstructions}${additionalInstructions}`;
+Rules:
+- Describe WHAT changed and WHY, not just which files were touched
+- Be specific: include concrete details (function names, package names, behavior) over generic statements
+- Classify by content: new capability=feat, broken behavior fixed=fix, restructure=refactor
+- Imperative present tense, max 72 chars subject line
+- Scope should reflect the domain (auth, api, i18n, ui), not generic (utils, core, data)${verboseHint}${baseInstructions ? `\n${baseInstructions}` : ''}${additionalInstructions}`;
+
+  const filesInfo = context.stagedFiles?.length
+    ? `\nStaged files:\n${context.stagedFiles.map(f => `- ${f}`).join('\n')}\n`
+    : '';
+
+  const user = `Generate a commit message for this diff:
+${filesInfo}
+${context.diff}`;
+
+  return { system, user };
 }
 
 /**
- * Builds a branch name prompt based on the naming convention
+ * Builds branch name prompts (system + user)
  */
-export function buildBranchPrompt(
+export function buildBranchPrompts(
+  context: BranchContext,
   convention: string = 'gitflow',
   baseInstructions: string = '',
-  additionalInstructions: string = '',
-  recentBranches: string[] = []
-): string {
+  customInstructions: string = ''
+): PromptPair {
   const conventionGuides: Record<string, string> = {
     gitflow: `Format: <type>/<description>
 Types: feat, fix, hotfix, chore, revert, tests, release
-Ex: feat/user-authentication`,
+Example: feat/user-authentication`,
 
     github: `Format: <type>/<description>
 Types: feat, fix, docs, chore, refactor
-Ex: feat/add-dark-mode`,
+Example: feat/add-dark-mode`,
 
     gitlab: `Format: <issue>-<description> or <type>/<description>
-Ex: 42-implement-search`,
+Example: 42-implement-search`,
 
     ticket: `Format: <ticket-id>/<description>
-Ex: JIRA-123/add-export`,
+Example: JIRA-123/add-export`,
 
     custom: `Follow custom format from config.`
   };
 
   const guide = conventionGuides[convention] || conventionGuides.gitflow;
 
-  const branchesSection = recentBranches?.length
-    ? `\nRecent branches (infer naming style - separator, casing, prefix patterns):\n${recentBranches.map(b => `- ${b}`).join('\n')}\nIgnore env branches (main, master, dev, qa, staging, prod, release, hotfix-only names) when inferring style.`
+  const branchesSection = context.recentBranches?.length
+    ? `\nRecent branches in this project (infer naming style - separator, casing, prefix patterns):\n${context.recentBranches.map(b => `- ${b}`).join('\n')}\nIgnore env branches (main, master, dev, qa, staging, prod, release, hotfix-only names) when inferring style.`
     : '';
 
-  return `Generate branch name. Output ONLY the name, no quotes/explanations.
+  const additionalInstructions = customInstructions
+    ? `\n\nUser notes:\n${customInstructions}`
+    : '';
 
-${guide}
-Rules: lowercase, 3-50 chars. Match project's separator style from recent branches (- or _) if available.${branchesSection}${baseInstructions}${additionalInstructions}
-
-Task:`;
-}
-
-/**
- * Builds a PR description prompt based on the style
- */
-export function buildPRPrompt(
-  style: string = 'detailed',
-  baseInstructions: string = '',
-  additionalInstructions: string = ''
-): string {
-  const styleGuides: Record<string, string> = {
-    detailed: `Include: summary, detailed changes list, testing steps, breaking changes, related issues`,
-    concise: `Include: brief summary, key changes bullets, quick test notes`,
-    template: `## Description\n[Summary]\n## Changes\n- [List]\n## Testing\n- [Steps]\n## Notes\n- [Context]`
-  };
-
-  const guide = styleGuides[style] || styleGuides.detailed;
-
-  return `Generate PR description in markdown. Output ONLY content, no meta-commentary.
+  const system = `Output ONLY the branch name. No quotes, explanations, or additional text.
 
 ${guide}
 
-Analyze commits, cohesive narrative, highlight key changes.${baseInstructions}${additionalInstructions}`;
+Rules:
+- Lowercase, 3-50 chars, use hyphens as default separator
+- Match separator style (- or _) from recent branches if available${branchesSection}${baseInstructions ? `\n${baseInstructions}` : ''}${additionalInstructions}`;
+
+  const user = `Generate a branch name for this task:
+${context.description}`;
+
+  return { system, user };
 }
 
 /**
- * Builds a code review prompt
+ * Builds PR description prompts (system + user)
+ *
+ * System prompt: Static, defines Coparrot's role and constraints
+ * User prompt: Dynamic, structured context for the specific PR
  */
-export function buildCodeReviewPrompt(
-  style: string = 'detailed',
-  baseInstructions: string = '',
-  additionalInstructions: string = ''
-): string {
-  return `Generate code review in markdown. Output ONLY review content.
+export function buildPRPrompts(
+  context: PRContext,
+  _style: string = 'detailed',
+  _baseInstructions: string = '',
+  _customInstructions: string = ''
+): PromptPair {
+  const hasTemplate = !!context.template;
 
-Focus: bugs, quality, perf, security, tests, docs. Style: ${style}${baseInstructions}${additionalInstructions}`;
+  const system = hasTemplate
+    ? `You are Coparrot, a PR template filler.
+
+YOUR #1 JOB: Output the ENTIRE PR template with every section filled in. Do NOT skip or shorten sections.
+
+CRITICAL — ANTI-HALLUCINATION:
+- HTML comments in the template (<!-- e.g. ... -->) are EXAMPLES and PLACEHOLDERS, NOT real data.
+- Do NOT copy, paraphrase, or expand on example content from HTML comments.
+- If a section has no applicable changes in the diff, remove the HTML comment and write "N/A".
+- ONLY use facts visible in the diff and commit messages. If the diff does not mention a file, test, endpoint, or behavior, do NOT include it.
+- Never invent file names, test descriptions, spec files, commands, or coverage numbers.
+
+TEMPLATE OUTPUT:
+- Output the complete template from start to finish. Every heading, every section, every checkbox list.
+- Replace HTML comments (<!-- ... -->) with real content from the diff, or "N/A" if not applicable.
+- Keep all markdown structure: headings, tables, details blocks, horizontal rules.
+
+CHECKBOXES:
+- Change \`- [ ]\` to \`- [x]\` for items confirmed by the diff. Do NOT reword labels.
+- For mutually exclusive checkbox groups (e.g. "New migration" vs "No database changes"), check the one that applies.
+- For boolean sections: if nothing changed (no DB, no API, no security), check the "no impact" / "no changes" option.
+- Leave a checkbox unchecked ONLY if it requires an action that was done (e.g. "self-reviewed") — those are for the author.
+
+Do NOT wrap output in code fences. Output raw markdown directly.`
+    : `You are Coparrot, a professional Git PR assistant.
+
+Your task is to generate the pull request BODY only (the title is handled separately).
+
+RULES:
+- Write a concise PR body in markdown.
+- ONLY describe what you can see in the diff and commit messages.
+- Do NOT guess what files contain beyond what the diff shows.
+- Do NOT invent functionality, test coverage, commands, or behavior.
+- If the diff is minimal or unclear, keep the description short and factual.
+- Do NOT wrap output in code fences. Output raw markdown directly.`;
+
+  const commitsSection = context.commits?.length
+    ? `## Commits (${context.headBranch} → ${context.baseBranch})\n${context.commits.map(c => `- ${c}`).join('\n')}`
+    : '';
+
+  const diffSection = context.diff
+    ? `## Diff\n\`\`\`diff\n${context.diff}\n\`\`\``
+    : '';
+
+  const user = hasTemplate
+    ? `Fill in the ENTIRE template below using the provided context. Output every section.
+
+Context:
+- Repository: ${context.repository.name}
+- Branches: ${context.headBranch} → ${context.baseBranch}
+
+${commitsSection}
+
+${diffSection}
+
+--- TEMPLATE START ---
+${context.template}
+--- TEMPLATE END ---
+
+Output the filled-in template above. Include ALL sections from TEMPLATE START to TEMPLATE END.`
+    : `Generate the PR body for this change.
+
+## Repository: ${context.repository.name}
+## Branches: ${context.headBranch} → ${context.baseBranch}
+
+${commitsSection}
+
+${diffSection}`;
+
+  return { system, user };
 }
 
 /**
- * Generic helper to build system prompts
+ * Builds PR title prompts (system + user)
  */
-export function buildSystemPrompt(type: string, options: SystemPromptOptions = {}): string {
+export function buildPRTitlePrompts(
+  context: PRContext,
+): PromptPair {
+  const system = `Output ONLY the PR title. No quotes, markdown, prefixes, or explanations.
+
+Rules:
+- Under 72 characters
+- Summarize the overall change in imperative tense
+- Be specific: use concrete names from the diff, not generic descriptions
+- ONLY describe what you can see in the diff and commit messages`;
+
+  const commitsInfo = context.commits?.length
+    ? `\nCommits:\n${context.commits.map(c => `- ${c}`).join('\n')}`
+    : '';
+
+  const user = `Generate a PR title for this change (${context.headBranch} → ${context.baseBranch}):
+${commitsInfo}
+Diff summary:
+${context.diff}`;
+
+  return { system, user };
+}
+
+/**
+ * Generic helper to build prompts based on type
+ */
+export function buildPrompts(
+  type: string,
+  context: unknown,
+  options: SystemPromptOptions = {}
+): PromptPair {
   const {
     convention,
     style,
@@ -145,42 +284,50 @@ export function buildSystemPrompt(type: string, options: SystemPromptOptions = {
     verbose = false
   } = options;
 
-  const additionalInstructions = customInstructions
-    ? `\n\nUser notes:\n${customInstructions}`
-    : '';
-
   switch (type) {
     case 'commit':
-      return buildCommitPrompt(
+      return buildCommitPrompts(
+        context as CommitContext,
         convention || 'conventional',
         baseInstructions,
-        additionalInstructions,
+        customInstructions || '',
         verbose
       );
 
     case 'branch':
-      return buildBranchPrompt(
+      // Merge recentBranches into context if provided via options
+      const branchCtx = context as BranchContext;
+      if (recentBranches.length && !branchCtx.recentBranches?.length) {
+        branchCtx.recentBranches = recentBranches;
+      }
+      return buildBranchPrompts(
+        branchCtx,
         convention || 'gitflow',
         baseInstructions,
-        additionalInstructions,
-        recentBranches
+        customInstructions || ''
       );
 
     case 'pr':
-      return buildPRPrompt(
+      return buildPRPrompts(
+        context as PRContext,
         style || 'detailed',
         baseInstructions,
-        additionalInstructions
+        customInstructions || ''
       );
 
-    case 'review':
-      return buildCodeReviewPrompt(
-        style || 'detailed',
-        baseInstructions,
-        additionalInstructions
-      );
+    case 'pr-title':
+      return buildPRTitlePrompts(context as PRContext);
 
     default:
-      return `Generate the requested output only. No explanations.${baseInstructions}${additionalInstructions}`;
+      return {
+        system: `Generate the requested output only. No explanations.${baseInstructions}${customInstructions ? `\nUser notes: ${customInstructions}` : ''}`,
+        user: typeof context === 'string' ? context : JSON.stringify(context)
+      };
   }
+}
+
+// Legacy support - builds just the system prompt (deprecated)
+export function buildSystemPrompt(type: string, options: SystemPromptOptions = {}): string {
+  const prompts = buildPrompts(type, {}, options);
+  return prompts.system;
 }
