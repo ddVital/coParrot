@@ -62,14 +62,15 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       await gitAdd(repo, status) 
       break;
     case 'commit':
-      const context = repo.diff([], { staged: true, compact: true });
+      const diff = repo.diff([], { staged: true, compact: true });
 
-      if (!context) {
+      if (!diff) {
         cli.streamer.showWarning(i18n.t('git.commit.noFilesStaged'));
         cli.streamer.showInfo(i18n.t('git.commit.useAddFirst'));
         return
       }
 
+      const context = { diff, stagedFiles: repo.getStagedFiles() };
       let commitMessage;
 
       // Check for verbose flag override
@@ -126,7 +127,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
     case 'hook':
       await hookCommand(args, cli);
       break;
-    case 'pr':
+    case 'open-pr':
       await handlePrCommand(args, repo, provider)
       break;
     default:
@@ -142,7 +143,7 @@ async function main(): Promise<void> {
   // Check if a command was passed as argument (e.g., coparrot status)
   // Do this BEFORE parsing commander to avoid conflicts
   const rawArgs = process.argv.slice(2);
-  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'demo', 'test', 'hook', 'pr'];
+  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'demo', 'test', 'hook', 'open-pr'];
   const commandArg = rawArgs.find(arg => validCommands.includes(arg));
 
   // Parse commander only for options (not commands)
@@ -169,7 +170,7 @@ async function main(): Promise<void> {
       'squawk': 'Commit each file individually with realistic timestamps (--from YYYY-MM-DD[THH:MM:SS], --to, --exclude-weekends)',
       'hook': 'Manage git hooks (install/uninstall global commit message hook)',
       'setup': 'Reconfigure coParrot settings. Use "setup <step>" for specific updates (language|provider|model|convention|custom)',
-      'pr': "Generate PR message"
+      'open-pr': "Open a pull request with AI-generated title and description"
     },
     config: config
   });
