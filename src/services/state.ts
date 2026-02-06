@@ -2,7 +2,7 @@ import ora, { Ora } from 'ora';
 import i18n from './i18n.js';
 
 interface StateOptions {
-  type?: 'commit' | 'branch' | 'pr' | 'review';
+  type?: 'commit' | 'branch' | 'pr';
 }
 
 class State {
