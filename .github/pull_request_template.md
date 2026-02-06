@@ -1,95 +1,68 @@
-# Summary
+## Area
+
+<!-- Check the feature area(s) this PR touches -->
+
+- [ ] `commit` - AI commit message generation
+- [ ] `squawk` - Individual file commits
+- [ ] `add` - Interactive file staging
+- [ ] `status` - Repository status
+- [ ] `open-pr` - Pull request creation
+- [ ] `checkout` - Branch creation
+- [ ] `setup` / `hook` - Configuration & hooks
+- [ ] `cli` - CLI framework, UI, rendering
+- [ ] `llms` - LLM providers & prompt engineering
+- [ ] `i18n` - Translations & localization
+- [ ] `docs` - Documentation only
+- [ ] `infra` - CI/CD, build, packaging
+
+## Summary
 
 <!--
-What does this PR do?
-1–3 sentences. Focus on *why* the change exists, not how.
+What does this PR do and why?
+1-3 sentences. Link issues if applicable: Fixes #123
 -->
-
----
 
 ## Changes
 
 <!--
-High-level list of changes.
-Prefer intent over file lists.
+High-level list of what changed. Focus on intent, not file names.
 -->
 
 -
 -
--
 
----
-
-## Why This Change?
+## Context
 
 <!--
-What problem does it solve?
-Link issues if applicable: Fixes #123
+What led to this change? Is there prior discussion, a related issue, or
+a user report that motivated it? Skip if obvious from the summary.
 -->
-
----
 
 ## Testing
 
-<!--
-How did you verify this works?
--->
-
-- [ ] Tested manually with `coparrot` CLI
-- [ ] Tested with multiple LLM providers (OpenAI/Claude/Gemini)
-- [ ] Unit/integration tests added/updated
-- [ ] Not tested (explain why)
-
-**Test details:**
--
-
----
+- [ ] Tested manually with `coparrot` / `cpt`
+- [ ] Tested with multiple providers (OpenAI / Claude / Gemini / Ollama)
+- [ ] Tested in multiple languages
+- [ ] Not tested (explain below)
 
 ## Breaking Changes
 
-<!--
-Does this break existing functionality or require user action?
-Examples: config changes, command syntax changes, removed features
--->
-
-- [ ] No breaking changes
-- [ ] Yes (describe below):
-
----
+- [ ] None
+- [ ] Yes — describe what breaks and any migration steps:
 
 ## Localization
 
-<!--
-For changes with user-facing text
--->
+- [ ] Updated `en.json`, `pt-BR.json`, `es.json`
+- [ ] N/A — no user-facing text changes
 
-- [ ] English (locales/en.json)
-- [ ] Portuguese (locales/pt-BR.json)
-- [ ] Spanish (locales/es.json)
-- [ ] N/A - no user-facing text changes
-
----
-
-## CLI Output / Screenshots
+## Screenshots / Terminal Output
 
 <!--
-If this changes CLI behavior, show before/after terminal output.
-Paste screenshots or terminal output here.
+If this changes CLI output, paste before/after here.
 -->
-
----
 
 ## Checklist
 
 - [ ] Code follows project conventions
-- [ ] Documentation updated (README, etc.)
-- [ ] No API keys or sensitive data included
+- [ ] No API keys or secrets included
 - [ ] Ready for review
-
----
-
-## Notes for Reviewers
-
-<!--
-Anything specific reviewers should focus on?
--->
