@@ -29,6 +29,7 @@ interface DiffOptions {
 interface LogOptions {
   limit?: number;
   oneline?: boolean;
+  aheadof?: string | null;
   format?: string | null;
   since?: string | null;
   author?: string | null;
@@ -61,6 +62,15 @@ interface CommitOptions {
 
 interface GitExecError extends Error {
   stderr?: string;
+}
+
+/**
+ * Escape a filename for safe use in shell commands using single quotes
+ * Single quotes prevent all shell interpretation except for single quotes themselves
+ */
+function shellEscape(str: string): string {
+  // Replace single quotes with '\'' (end quote, escaped quote, start quote)
+  return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
 /**
@@ -150,7 +160,7 @@ class GitRepository {
     if (compact) cmd += ' --unified=1 --word-diff=plain --ignore-all-space'
     if (upstream) cmd += ' @{u}..HEAD'
     if (revisionRange) cmd += ` ${revisionRange}`
-    if (files.length) cmd += ` -- ${files.map(f => `"${f}"`).join(' ')}`;
+    if (files.length) cmd += ` -- ${files.map(f => shellEscape(f)).join(' ')}`;
 
     return this.exec(cmd);
   }
@@ -162,6 +172,7 @@ class GitRepository {
     const {
       limit = 10,
       oneline = true,
+      aheadof = null,
       format = null,
       since = null,
       author = null
@@ -169,6 +180,7 @@ class GitRepository {
 
     let cmd = 'git log';
     if (limit) cmd += ` -n ${limit}`;
+    if (aheadof) cmd += ` ${aheadof.trim()}..HEAD`;
     if (oneline && !format) cmd += ' --oneline';
     if (format) cmd += ` --format="${format}"`;
     if (since) cmd += ` --since="${since}"`;
@@ -191,7 +203,7 @@ class GitRepository {
     }
 
     const fileList = Array.isArray(files) ? files : [files];
-    return this.exec(`git add ${fileList.map(f => `"${f}"`).join(' ')}`);
+    return this.exec(`git add ${fileList.map(f => shellEscape(f)).join(' ')}`);
   }
 
   /**
@@ -210,7 +222,7 @@ class GitRepository {
     }
 
     const fileList = Array.isArray(files) ? files : [files];
-    return this.exec(`git restore --staged ${fileList.map(f => `"${f}"`).join(' ')}`);
+    return this.exec(`git restore --staged ${fileList.map(f => shellEscape(f)).join(' ')}`);
   }
 
   restoreAll(): string {
@@ -294,7 +306,7 @@ class GitRepository {
     try {
       return this.exec('git branch --show-current');
     } catch (error) {
-      return 'main'; // Default for new repos
+      return 'main'; // Default for new repos TODO: see if this is the right approach
     }
   }
 
@@ -314,6 +326,14 @@ class GitRepository {
       .split('\n')
       .map(b => b.trim().replace(/^\*\s+/, ''))
       .filter(Boolean);
+  }
+
+  baseBranch(): string {
+    try {
+      return this.exec('git symbolic-ref refs/remotes/origin/HEAD').trim();
+    } catch {
+      return 'main'; // TODO: maybe change to detect default branch
+    }
   }
 
   /**
@@ -501,14 +521,28 @@ class GitRepository {
 
     return lines.map(line => {
       const statusCode = line.substring(0, 2);
-      const filename = statusCode.includes('??') ? line.substring(3) : line.substring(2);
+      let filename = statusCode.includes('??') ? line.substring(3) : line.substring(2);
+      filename = filename.trim();
+
+      // Handle renamed/copied files: "old name" -> "new name" or old -> new
+      if (statusCode[0] === 'R' || statusCode[0] === 'C') {
+        const arrowIndex = filename.indexOf(' -> ');
+        if (arrowIndex !== -1) {
+          filename = filename.substring(arrowIndex + 4); // Get the new name after " -> "
+        }
+      }
+
+      // Git quotes filenames with spaces/special chars - strip the quotes
+      if (filename.startsWith('"') && filename.endsWith('"')) {
+        filename = filename.slice(1, -1);
+      }
 
       const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
 
       return {
         status: this._getChangeType(statusCode),
         statusCode,
-        value: filename.trim(),
+        value: filename,
         checked: isStaged,
         additions: stats[filename]?.additions || 0,
         deletions: stats[filename]?.deletions || 0
@@ -530,7 +564,14 @@ class GitRepository {
     lines.forEach(line => {
       const parts = line.split('\t');
       if (parts.length >= 3) {
-        const [additions, deletions, filename] = parts;
+        const [additions, deletions, ...filenameParts] = parts;
+        let filename = filenameParts.join('\t'); // Handle filenames with tabs
+
+        // Git quotes filenames with spaces/special chars - strip the quotes
+        if (filename.startsWith('"') && filename.endsWith('"')) {
+          filename = filename.slice(1, -1);
+        }
+
         stats[filename] = {
           additions: additions === '-' ? 0 : parseInt(additions) || 0,
           deletions: deletions === '-' ? 0 : parseInt(deletions) || 0
