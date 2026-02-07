@@ -36,3 +36,11 @@ export function saveContext(context: SessionContext): void {
   const data = JSON.stringify(context, null, JSON_INDENT);
   fs.writeFileSync(CONTEXT_PATH, data, CONFIG_ENCODING);
 }
+
+export function clearContext(): boolean {
+  if (fs.existsSync(CONTEXT_PATH)) {
+    fs.unlinkSync(CONTEXT_PATH);
+    return true;
+  }
+  return false;
+}

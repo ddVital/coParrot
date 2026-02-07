@@ -15,7 +15,7 @@ import { hookCommand } from '../src/commands/hook.js';
 import i18n from '../src/services/i18n.js';
 import { VERSION } from '../src/utils/index.js';
 import { handlePrCommand } from '../src/commands/pr.js';
-import { sessionContext } from '../src/commands/context.js';
+import { sessionContext, sessionContextClear } from '../src/commands/context.js';
 import { loadContext } from '../src/services/context.js';
 import type { GitChange } from '../src/services/git.js';
 
@@ -61,7 +61,11 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       cli.streamer.showGitInfo(status)
       break;
     case 'context':
-      await sessionContext();
+      if (args[0] === 'clear') {
+        sessionContextClear();
+      } else {
+        await sessionContext();
+      }
       break;
     case 'add':
       await gitAdd(repo, status) 
@@ -168,7 +172,7 @@ async function main(): Promise<void> {
       'squawk': 'Commit each file individually with realistic timestamps (--from YYYY-MM-DD[THH:MM:SS], --to, --exclude-weekends)',
       'hook': 'Manage git hooks (install/uninstall global commit message hook)',
       'setup': 'Reconfigure coParrot settings. Use "setup <step>" for specific updates (language|provider|model|convention|custom)',
-      'context': 'Set project context (title and description) for AI-generated messages',
+      'context': 'Set project context for AI-generated messages. Use "context clear" to remove it',
       'open-pr': "Open a pull request with AI-generated title and description"
     },
     config: config

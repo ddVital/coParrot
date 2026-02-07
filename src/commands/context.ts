@@ -1,7 +1,7 @@
 import { input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import i18n from '../services/i18n.js';
-import { saveContext } from '../services/context.js';
+import { saveContext, clearContext } from '../services/context.js';
 
 export async function sessionContext(): Promise<void> {
   try {
@@ -25,5 +25,14 @@ export async function sessionContext(): Promise<void> {
   } catch (error) {
     if ((error as Error).name === 'ExitPromptError') return;
     throw error;
+  }
+}
+
+export function sessionContextClear(): void {
+  const cleared = clearContext();
+  if (cleared) {
+    console.log(chalk.green('✓ ') + i18n.t('context.cleared'));
+  } else {
+    console.log(chalk.yellow('! ') + i18n.t('context.noContext'));
   }
 }
