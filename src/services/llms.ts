@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import { select, input } from '@inquirer/prompts';
 import StreamingOutput from '../lib/streamer.js';
 import chalk from 'chalk';
-import { buildPrompts, PromptPair } from './prompts.js';
+import { buildPrompts, PromptPair, type SessionContext } from './prompts.js';
 import i18n from './i18n.js';
 import axios from 'axios';
 
@@ -25,6 +25,7 @@ interface LLMOptions {
       };
       prMessageStyle?: string;
       customInstructions?: string;
+      sessionContext?: SessionContext | null;
     };
     skipApproval?: boolean;
   }
@@ -221,7 +222,8 @@ class LLMOrchestrator {
       style,
       baseInstructions,
       customInstructions,
-      verbose
+      verbose,
+      sessionContext: this.options.instructions?.sessionContext ?? null
     });
   }
 
