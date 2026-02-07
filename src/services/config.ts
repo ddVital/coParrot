@@ -1,9 +1,9 @@
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import chalk from 'chalk';
 import { setup } from '../commands/setup.js';
 import i18n from './i18n.js';
+import { getConfigDir } from '../utils/platform.js';
 
 // Types
 export interface CommitConvention {
@@ -25,7 +25,7 @@ export interface AppConfig {
 }
 
 // Constants
-const CONFIG_DIR = path.join(os.homedir(), '.config', 'coparrot');
+const CONFIG_DIR = getConfigDir();
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 const CONFIG_ENCODING: BufferEncoding = 'utf-8';
 const JSON_INDENT = 2;

@@ -4,6 +4,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import i18n from '../services/i18n.js';
+import { isWindows } from '../utils/platform.js';
 import type CLI from '../lib/cli.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -56,6 +57,8 @@ async function installHook(cli: CLI): Promise<void> {
     }
 
     // Create prepare-commit-msg hook
+    // MINGW bash on Windows needs forward slashes in paths
+    const hookBinPath = isWindows ? COPARROT_BIN.replace(/\\/g, '/') : COPARROT_BIN;
     const hookPath = path.join(hooksDir, 'prepare-commit-msg');
     const hookContent = `#!/bin/bash
 # CoParrot - AI-powered commit message generator
@@ -76,8 +79,8 @@ if [ -z "$COMMIT_SOURCE" ]; then
         COPARROT_CMD="cpt"
       elif command -v coparrot &> /dev/null; then
         COPARROT_CMD="coparrot"
-      elif [ -f "${COPARROT_BIN}" ]; then
-        COPARROT_CMD="node ${COPARROT_BIN}"
+      elif [ -f "${hookBinPath}" ]; then
+        COPARROT_CMD="node ${hookBinPath}"
       else
         # CoParrot not found, skip
         exit 0
@@ -104,8 +107,13 @@ fi
     fs.writeFileSync(hookPath, hookContent, { mode: 0o755 });
 
     // Set up git alias for squawk (if not already set)
+    // Windows cmd.exe needs double quotes; Unix shells use single quotes
+    const aliasBinPath = isWindows ? COPARROT_BIN.replace(/\\/g, '/') : COPARROT_BIN;
+    const aliasCmd = isWindows
+      ? `git config --global alias.squawk "!node ${aliasBinPath} squawk"`
+      : `git config --global alias.squawk '!node ${aliasBinPath} squawk'`;
     try {
-      execSync(`git config --global alias.squawk '!node ${COPARROT_BIN} squawk'`, {
+      execSync(aliasCmd, {
         stdio: 'pipe'
       });
     } catch (error) {
