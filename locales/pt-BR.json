@@ -281,6 +281,8 @@
     "saved": "Contexto salvo com sucesso!",
     "cleared": "Contexto removido com sucesso!",
     "noContext": "Nenhum contexto definido no momento.",
+    "showTitle": "Titulo:",
+    "showDescription": "Descricao:",
     "hint": "Dica: Use /context para adicionar detalhes da tarefa e gerar mensagens melhores."
   },
   "common": {

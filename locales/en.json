@@ -314,6 +314,8 @@
     "saved": "Context saved successfully!",
     "cleared": "Context cleared successfully!",
     "noContext": "No context is currently set.",
+    "showTitle": "Title:",
+    "showDescription": "Description:",
     "hint": "Tip: Use /context to add task details for better messages."
   },
   "common": {

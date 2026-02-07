@@ -280,6 +280,8 @@
     "saved": "Contexto guardado exitosamente!",
     "cleared": "Contexto eliminado exitosamente!",
     "noContext": "No hay contexto definido actualmente.",
+    "showTitle": "Titulo:",
+    "showDescription": "Descripcion:",
     "hint": "Consejo: Usa /context para agregar detalles de la tarea y generar mejores mensajes."
   },
   "common": {
