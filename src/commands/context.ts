@@ -1,7 +1,7 @@
 import { input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import i18n from '../services/i18n.js';
-import { saveContext, clearContext } from '../services/context.js';
+import { saveContext, clearContext, loadContext } from '../services/context.js';
 
 export async function sessionContext(): Promise<void> {
   try {
@@ -25,6 +25,16 @@ export async function sessionContext(): Promise<void> {
   } catch (error) {
     if ((error as Error).name === 'ExitPromptError') return;
     throw error;
+  }
+}
+
+export function sessionContextShow(): void {
+  const ctx = loadContext();
+  if (ctx) {
+    console.log(chalk.bold(i18n.t('context.showTitle')) + ' ' + ctx.title);
+    console.log(chalk.bold(i18n.t('context.showDescription')) + ' ' + ctx.description);
+  } else {
+    console.log(chalk.yellow('! ') + i18n.t('context.noContext'));
   }
 }
 
