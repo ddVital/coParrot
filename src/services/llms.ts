@@ -103,11 +103,11 @@ class LLMOrchestrator {
   }
 
   async approveLLMResponse(response: string): Promise<ApprovalResult> {
-    this._showLLMResponse(response);
+    const formattedResponse = chalk.grey('## ') + chalk.white(response);
+    const promptMessage = formattedResponse + '\n\n\n' + i18n.t('llm.approvalPrompt');
 
-    // Present options to the user
     const action = await select<'approve' | 'retry' | 'retry_with_instructions'>({
-      message: i18n.t('llm.approvalPrompt'),
+      message: promptMessage,
       choices: [
         { name: i18n.t('llm.approvalOptions.approve'), value: 'approve' as const },
         { name: i18n.t('llm.approvalOptions.retry'), value: 'retry' as const },
@@ -308,9 +308,6 @@ class LLMOrchestrator {
     }
   }
 
-  _showLLMResponse(response: string): void {
-    console.log('\n' + chalk.grey('## ') + chalk.white(response) + '\n');
-  }
 }
 
 export default LLMOrchestrator;
