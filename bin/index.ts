@@ -91,9 +91,6 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       await hookCommand(args, cli);
       break;
     case 'open-pr':
-      if (!sessionCtx) {
-        cli.streamer.showInfo(i18n.t('context.hint'));
-      }
       await handlePrCommand(args, repo, provider)
       break;
     default:
