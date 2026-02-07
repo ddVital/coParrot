@@ -312,6 +312,8 @@
     "titleRequired": "Title is required",
     "descriptionRequired": "Description is required",
     "saved": "Context saved successfully!",
+    "cleared": "Context cleared successfully!",
+    "noContext": "No context is currently set.",
     "hint": "Tip: Use /context to add task details for better messages."
   },
   "common": {

@@ -279,6 +279,8 @@
     "titleRequired": "O titulo e obrigatorio",
     "descriptionRequired": "A descricao e obrigatoria",
     "saved": "Contexto salvo com sucesso!",
+    "cleared": "Contexto removido com sucesso!",
+    "noContext": "Nenhum contexto definido no momento.",
     "hint": "Dica: Use /context para adicionar detalhes da tarefa e gerar mensagens melhores."
   },
   "common": {
