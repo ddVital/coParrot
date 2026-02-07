@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import i18n from '../services/i18n.js';
 import { saveContext, clearContext, loadContext } from '../services/context.js';
 
-export async function sessionContext(): Promise<void> {
+async function setContext(): Promise<void> {
   try {
     const title = await input({
       message: i18n.t('context.titlePrompt'),
@@ -28,7 +28,7 @@ export async function sessionContext(): Promise<void> {
   }
 }
 
-export function sessionContextShow(): void {
+function showContext(): void {
   const ctx = loadContext();
   if (ctx) {
     console.log(chalk.bold(i18n.t('context.showTitle')) + ' ' + ctx.title);
@@ -38,11 +38,26 @@ export function sessionContextShow(): void {
   }
 }
 
-export function sessionContextClear(): void {
+function removeContext(): void {
   const cleared = clearContext();
   if (cleared) {
     console.log(chalk.green('✓ ') + i18n.t('context.cleared'));
   } else {
     console.log(chalk.yellow('! ') + i18n.t('context.noContext'));
+  }
+}
+
+export async function contextCommand(args: string[]): Promise<void> {
+  const subcommand = args[0];
+
+  switch (subcommand) {
+    case 'show':
+      showContext();
+      break;
+    case 'clear':
+      removeContext();
+      break;
+    default:
+      await setContext();
   }
 }
