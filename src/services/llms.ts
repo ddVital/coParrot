@@ -104,7 +104,7 @@ class LLMOrchestrator {
 
   async approveLLMResponse(response: string): Promise<ApprovalResult> {
     const formattedResponse = chalk.grey('## ') + chalk.white(response);
-    const promptMessage = formattedResponse + '\n\n\n' + i18n.t('llm.approvalPrompt');
+    const promptMessage = formattedResponse + '\n\n' + i18n.t('llm.approvalPrompt');
 
     const action = await select<'approve' | 'retry' | 'retry_with_instructions'>({
       message: promptMessage,
