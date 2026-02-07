@@ -15,7 +15,7 @@ import { hookCommand } from '../src/commands/hook.js';
 import i18n from '../src/services/i18n.js';
 import { VERSION } from '../src/utils/index.js';
 import { handlePrCommand } from '../src/commands/pr.js';
-import { sessionContext, sessionContextClear } from '../src/commands/context.js';
+import { sessionContext, sessionContextClear, sessionContextShow } from '../src/commands/context.js';
 import { loadContext } from '../src/services/context.js';
 import type { GitChange } from '../src/services/git.js';
 
@@ -63,6 +63,8 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
     case 'context':
       if (args[0] === 'clear') {
         sessionContextClear();
+      } else if (args[0] === 'show') {
+        sessionContextShow();
       } else {
         await sessionContext();
       }
