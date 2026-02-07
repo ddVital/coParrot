@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import { loadConfig, setupConfig } from '../src/services/config.js';
 import { setupStep } from '../src/commands/setup.js';
 import { gitAdd } from '../src/commands/add.js';
-import { gitCommit } from '../src/commands/commit.js';
+import { commitCommand } from '../src/commands/commit.js';
 import { gitCheckout } from '../src/commands/checkout.js';
 import { squawk } from '../src/commands/squawk.js';
 import { hookCommand } from '../src/commands/hook.js';
@@ -67,39 +67,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       await gitAdd(repo, status) 
       break;
     case 'commit':
-      const diff = repo.diff([], { staged: true, compact: true });
-
-      if (!diff) {
-        cli.streamer.showWarning(i18n.t('git.commit.noFilesStaged'));
-        cli.streamer.showInfo(i18n.t('git.commit.useAddFirst'));
-        return
-      }
-
-      const context = { diff, stagedFiles: repo.getStagedFiles() };
-      let commitMessage;
-
-      // Check for verbose flag override
-      const verboseOverride = args.includes('--verbose') || args.includes('-v');
-      if (verboseOverride && provider.options.instructions?.commitConvention) {
-        provider.options.instructions.commitConvention.verboseCommits = true;
-      }
-
-      if (!sessionCtx && !args.includes('--hook')) {
-        cli.streamer.showInfo(i18n.t('context.hint'));
-      }
-
-      // If --hook flag is passed, use direct generation (no UI/approval)
-      if (args.includes('--hook')) {
-        commitMessage = await provider.generateCommitMessageDirect(context);
-        // Output only the message for git hook
-        console.log(commitMessage);
-      } else {
-        commitMessage = await provider.generateCommitMessage(context);
-        if (commitMessage) {
-          gitCommit(repo, commitMessage);
-        }
-      }
-
+      await commitCommand(repo, provider, args, cli);
       break;
     case 'squawk':
       await squawk(repo, provider, args);
