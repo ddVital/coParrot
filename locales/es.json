@@ -85,7 +85,31 @@
       "groupCommits": "{count} commits en grupo ({files} archivos)",
       "individualCommits": "{count} commits individuales",
       "failedCommits": "{count} fallaron",
-      "completedIn": "Completado en {time}s"
+      "completedIn": "Completado en {time}s",
+      "interactive": {
+        "ignorePrompt": "¿Deseas ignorar algún patrón de archivo?",
+        "ignorePatterns": "Ingresa los patrones (separados por coma):",
+        "groupPrompt": "¿Deseas agrupar archivos en commits únicos?",
+        "groupPatterns": "Ingresa los patrones de grupo (separados por coma):",
+        "dateRangePrompt": "¿Distribuir commits en un rango de fechas?",
+        "startDate": "Fecha de inicio (AAAA-MM-DD):",
+        "endDate": "Fecha de fin (AAAA-MM-DD):",
+        "excludeWeekendsPrompt": "¿Excluir fines de semana?"
+      },
+      "progress": {
+        "filesProcessed": "archivos procesados: {current}/{total}...",
+        "currentFile": "archivo actual: {file}",
+        "lastCommit": "último commit: '{message}'"
+      },
+      "approval": {
+        "message": "¿Aprobar este mensaje?",
+        "approve": "Sí, hacer commit",
+        "skip": "Omitir este commit",
+        "retry": "Reintentar",
+        "retryWithInstructions": "Reintentar con instrucciones",
+        "instructionsPrompt": "Ingresa tus instrucciones:",
+        "autoApproved": "Aprobado automáticamente"
+      }
     },
     "errors": {
       "notARepository": "No es un repositorio git: {path}",
@@ -247,6 +271,18 @@
     "uncommittedChanges": "Tienes cambios sin commitear. Por favor, haz commit o stash antes de crear un PR.",
     "noBranchDiff": "No hay commits por delante de {base}. No hay nada para abrir un PR.",
     "created": "¡Pull request creado exitosamente!"
+  },
+  "context": {
+    "titlePrompt": "Ingresa el titulo del contexto:",
+    "descriptionPrompt": "Ingresa la descripcion del contexto:",
+    "titleRequired": "El titulo es obligatorio",
+    "descriptionRequired": "La descripcion es obligatoria",
+    "saved": "Contexto guardado exitosamente!",
+    "cleared": "Contexto eliminado exitosamente!",
+    "noContext": "No hay contexto definido actualmente.",
+    "showTitle": "Titulo:",
+    "showDescription": "Descripcion:",
+    "hint": "Consejo: Usa /context para agregar detalles de la tarea y generar mejores mensajes."
   },
   "common": {
     "yes": "Sí",

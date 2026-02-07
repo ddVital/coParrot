@@ -8,15 +8,15 @@ import chalk from 'chalk';
 import { loadConfig, setupConfig } from '../src/services/config.js';
 import { setupStep } from '../src/commands/setup.js';
 import { gitAdd } from '../src/commands/add.js';
-import { gitCommit } from '../src/commands/commit.js';
+import { commitCommand } from '../src/commands/commit.js';
 import { gitCheckout } from '../src/commands/checkout.js';
 import { squawk } from '../src/commands/squawk.js';
 import { hookCommand } from '../src/commands/hook.js';
 import i18n from '../src/services/i18n.js';
-import { parseFlag } from '../src/utils/args-parser.js';
 import { VERSION } from '../src/utils/index.js';
 import { handlePrCommand } from '../src/commands/pr.js';
-
+import { contextCommand } from '../src/commands/context.js';
+import { loadContext } from '../src/services/context.js';
 import type { GitChange } from '../src/services/git.js';
 
 // Configure commander
@@ -38,6 +38,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
   const status: GitChange[] = repo.getDetailedStatus();
 
   // Initialize LLM provider
+  const sessionCtx = loadContext();
   const provider = new LLMOrchestrator({
     provider: config.provider as 'openai' | 'claude' | 'gemini' | 'ollama' | undefined,
     apiKey: config.apiKey ?? undefined,
@@ -46,7 +47,8 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
     instructions: {
       commitConvention: config.commitConvention,
       prMessageStyle: config.prMessageStyle,
-      customInstructions: config.customInstructions
+      customInstructions: config.customInstructions,
+      sessionContext: sessionCtx
     },
     skipApproval: args.includes('-y') || args.includes('--yes')
   });
@@ -58,56 +60,17 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
     case 'status':
       cli.streamer.showGitInfo(status)
       break;
+    case 'context':
+      await contextCommand(args);
+      break;
     case 'add':
       await gitAdd(repo, status) 
       break;
     case 'commit':
-      const diff = repo.diff([], { staged: true, compact: true });
-
-      if (!diff) {
-        cli.streamer.showWarning(i18n.t('git.commit.noFilesStaged'));
-        cli.streamer.showInfo(i18n.t('git.commit.useAddFirst'));
-        return
-      }
-
-      const context = { diff, stagedFiles: repo.getStagedFiles() };
-      let commitMessage;
-
-      // Check for verbose flag override
-      const verboseOverride = args.includes('--verbose') || args.includes('-v');
-      if (verboseOverride && provider.options.instructions?.commitConvention) {
-        provider.options.instructions.commitConvention.verboseCommits = true;
-      }
-
-      // If --hook flag is passed, use direct generation (no UI/approval)
-      if (args.includes('--hook')) {
-        commitMessage = await provider.generateCommitMessageDirect(context);
-        // Output only the message for git hook
-        console.log(commitMessage);
-      } else {
-        commitMessage = await provider.generateCommitMessage(context);
-        if (commitMessage) {
-          gitCommit(repo, commitMessage);
-        }
-      }
-
+      await commitCommand(repo, provider, args, cli);
       break;
     case 'squawk':
-      const ignoredFiles = parseFlag(args, '--ignore');
-      const groupedFiles = parseFlag(args, '--group');
-      const fromDate = parseFlag(args, '--from')[0] || undefined;
-      const toDate = parseFlag(args, '--to')[0] || undefined;
-      const timezone = parseFlag(args, '--timezone')[0] || undefined;
-      const excludeWeekends = args.includes('--exclude-weekends');
-
-      await squawk(repo, provider, {
-        ignore: ignoredFiles,
-        group: groupedFiles,
-        from: fromDate,
-        to: toDate,
-        timezone: timezone,
-        excludeWeekends: excludeWeekends
-      });
+      await squawk(repo, provider, args);
       break;
     case 'checkout':
       gitCheckout(repo, provider, args)
@@ -143,7 +106,7 @@ async function main(): Promise<void> {
   // Check if a command was passed as argument (e.g., coparrot status)
   // Do this BEFORE parsing commander to avoid conflicts
   const rawArgs = process.argv.slice(2);
-  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'demo', 'test', 'hook', 'open-pr'];
+  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'demo', 'test', 'hook', 'open-pr', 'context'];
   const commandArg = rawArgs.find(arg => validCommands.includes(arg));
 
   // Parse commander only for options (not commands)
@@ -170,6 +133,7 @@ async function main(): Promise<void> {
       'squawk': 'Commit each file individually with realistic timestamps (--from YYYY-MM-DD[THH:MM:SS], --to, --exclude-weekends)',
       'hook': 'Manage git hooks (install/uninstall global commit message hook)',
       'setup': 'Reconfigure coParrot settings. Use "setup <step>" for specific updates (language|provider|model|convention|custom)',
+      'context': 'Set project context for AI-generated messages. Use "context clear" to remove it',
       'open-pr': "Open a pull request with AI-generated title and description"
     },
     config: config

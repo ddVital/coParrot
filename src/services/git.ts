@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import i18n from './i18n.js';
+import { shellEscape, isWindows } from '../utils/platform.js';
 
 // Types
 export interface GitChange {
@@ -62,15 +63,6 @@ interface CommitOptions {
 
 interface GitExecError extends Error {
   stderr?: string;
-}
-
-/**
- * Escape a filename for safe use in shell commands using single quotes
- * Single quotes prevent all shell interpretation except for single quotes themselves
- */
-function shellEscape(str: string): string {
-  // Replace single quotes with '\'' (end quote, escaped quote, start quote)
-  return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
 /**
@@ -235,8 +227,13 @@ class GitRepository {
   commit(message: string, options: CommitOptions = {}): string {
     const { amend = false, noVerify = false, date = null } = options;
 
-    // Escape message properly
-    const escapedMessage = message.replace(/"/g, '\\"').replace(/\$/g, '\\$');
+    // Escape message properly for the target platform
+    let escapedMessage = message.replace(/"/g, '\\"');
+    if (isWindows) {
+      escapedMessage = escapedMessage.replace(/%/g, '%%');
+    } else {
+      escapedMessage = escapedMessage.replace(/\$/g, '\\$');
+    }
 
     let cmd = 'git commit';
     if (amend) cmd += ' --amend';
@@ -319,13 +316,15 @@ class GitRepository {
     let cmd = 'git branch';
     if (all) cmd += ' -a';
     else if (remote) cmd += ' -r';
-    else if (count) cmd += ` | head -n ${count}`
-            
+
     const output = this.exec(cmd);
-    return output
+    let branches = output
       .split('\n')
       .map(b => b.trim().replace(/^\*\s+/, ''))
       .filter(Boolean);
+
+    if (count) branches = branches.slice(0, count);
+    return branches;
   }
 
   baseBranch(): string {

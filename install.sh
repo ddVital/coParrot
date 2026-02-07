@@ -58,7 +58,18 @@ install_node() {
   printf "    ${BOLD}3)${RESET} Skip — I'll install it myself\n"
   echo ""
   printf "  Choice [1/2/3]: "
-  read -r choice
+
+  # When piped (curl | bash), stdin is the pipe — read from terminal instead
+  if [ -t 0 ]; then
+    read -r choice
+  elif [ -e /dev/tty ]; then
+    read -r choice < /dev/tty
+  else
+    error "Cannot read input. Download and run the script directly instead:"
+    echo "  curl -fsSL https://raw.githubusercontent.com/ddVital/coParrot/main/install.sh -o install.sh"
+    echo "  bash install.sh"
+    exit 1
+  fi
 
   case "$choice" in
     1)
@@ -133,10 +144,21 @@ main() {
   info "Installing ${PACKAGE} globally..."
   echo ""
 
+  # Use sudo on Linux when Node was installed system-wide (not via nvm/fnm)
+  local use_sudo=""
+  if [ "$(uname -s)" != "Darwin" ] && [ -z "${NVM_DIR:-}" ] && [ -z "${FNM_DIR:-}" ]; then
+    local npm_prefix
+    npm_prefix="$(npm prefix -g 2>/dev/null || echo "")"
+    if [ -n "$npm_prefix" ] && [ ! -w "$npm_prefix/lib" ]; then
+      use_sudo="sudo"
+      warn "Global npm directory is not writable — using sudo"
+    fi
+  fi
+
   case "$pkg_manager" in
-    npm)  npm install -g "$PACKAGE" ;;
-    yarn) yarn global add "$PACKAGE" ;;
-    pnpm) pnpm add -g "$PACKAGE" ;;
+    npm)  $use_sudo npm install -g "$PACKAGE" ;;
+    yarn) $use_sudo yarn global add "$PACKAGE" ;;
+    pnpm) $use_sudo pnpm add -g "$PACKAGE" ;;
   esac
 
   echo ""

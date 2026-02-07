@@ -7,6 +7,7 @@ import type LLMOrchestrator from '../services/llms.js';
 import GithubCli from '../services/gh.js';
 import { detectPRTemplate } from './setup.js';
 import i18n from '../services/i18n.js';
+import { loadContext } from '../services/context.js';
 import type { PRContext } from '../services/prompts.js';
 
 export async function handlePrCommand(
@@ -15,6 +16,10 @@ export async function handlePrCommand(
   provider: LLMOrchestrator
 ): Promise<void> {
   const streamer = new StreamingOutput(null);
+
+  if (!loadContext()) {
+    streamer.showInfo(i18n.t('context.hint'));
+  }
 
   // Validate gh CLI (throws if not installed/authenticated)
   const gh = new GithubCli();
