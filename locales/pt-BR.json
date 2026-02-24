@@ -273,7 +273,8 @@
   "pr": {
     "uncommittedChanges": "Você tem alterações não commitadas. Por favor, faça commit ou stash antes de criar um PR.",
     "noBranchDiff": "Nenhum commit à frente de {base}. Nada para abrir um PR.",
-    "created": "Pull request criado com sucesso!"
+    "created": "Pull request criado com sucesso!",
+    "pushingBranch": "Enviando branch para o remoto..."
   },
   "context": {
     "titlePrompt": "Digite o titulo do contexto:",
