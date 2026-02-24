@@ -99,6 +99,7 @@ export function createMockCLI(overrides: Record<string, unknown> = {}): CLI {
       showInfo: vi.fn(),
       showError: vi.fn(),
       showSuccess: vi.fn(),
+      showNothing: vi.fn(),
       startThinking: vi.fn(),
       stopThinking: vi.fn(),
       showGitInfo: vi.fn(),
