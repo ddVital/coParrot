@@ -45,6 +45,7 @@ export async function selectFilesToAdd(files: string[]): Promise<string[]> {
 export async function gitAdd(repo: GitRepository, changes: GitChange[]): Promise<void> {
   if (changes.length === 0) {
     console.log(chalk.dim(i18n.t('git.add.noFilesAvailable')));
+    console.log();
     return;
   }
 
