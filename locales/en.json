@@ -269,6 +269,8 @@
     "setupFailed": "Setup failed. Please try again.",
     "setupCancelled": "Setup cancelled.",
     "configSaved": "Configuration saved to: {path}",
+    "envVarDetected": "API key detected from {envVar} environment variable.",
+    "envVarHint": "The environment variable will be used automatically. No need to enter a key.",
     "readyToGo": "You're all set! Starting coParrot..."
   },
   "config": {
