@@ -331,6 +331,7 @@ export async function squawk(
 
     if (allChanges.length === 0) {
       console.log(chalk.dim(i18n.t('git.squawk.noChanges')));
+      console.log();
       return;
     }
 
