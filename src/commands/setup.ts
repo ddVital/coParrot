@@ -1,7 +1,7 @@
 import { select, password, confirm, input, editor } from '@inquirer/prompts';
 import chalk from 'chalk';
 import i18n from '../services/i18n.js';
-import { loadConfig, saveConfig } from '../services/config.js';
+import { loadConfig, saveConfig, getEnvVarForProvider } from '../services/config.js';
 import type { AppConfig } from '../services/config.js';
 import axios from 'axios';
 import fs from 'fs';
@@ -294,6 +294,14 @@ async function promptProviderCredentials(provider: string): Promise<ProviderCred
   if (provider === 'ollama') {
     const ollamaUrl = await promptOllamaUrl();
     return { apiKey: null, ollamaUrl };
+  }
+
+  const detectedEnvVar = getEnvVarForProvider(provider);
+  if (detectedEnvVar) {
+    console.log();
+    console.log(chalk.green('✓ ') + i18n.t('setup.envVarDetected', { envVar: chalk.bold(detectedEnvVar) }));
+    console.log(chalk.dim('  ' + i18n.t('setup.envVarHint')));
+    return { apiKey: null, ollamaUrl: null };
   }
 
   const apiKey = await promptApiKey(provider);
