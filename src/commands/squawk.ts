@@ -1,10 +1,8 @@
 import i18n from '../services/i18n.js';
 import chalk from 'chalk';
-import logUpdate from 'log-update';
 import { filterByGlob, matchesAnyPattern } from '../utils/glob.js';
 import { confirm, input } from '@inquirer/prompts';
 import { parseFlag, hasFlag } from '../utils/args-parser.js';
-import TransientProgress from '../utils/transient-progress.js';
 import type GitRepository from '../services/git.js';
 import type LLMOrchestrator from '../services/llms.js';
 
@@ -44,10 +42,6 @@ interface ItemWithComplexity {
   linesChanged: number;
 }
 
-interface FileError {
-  filename: string;
-  error: string;
-}
 
 interface ProcessContext {
   repo: GitRepository;
@@ -346,14 +340,15 @@ export async function squawk(
     }
 
     const commitTimestamps = calculateCommitTimestamps(ungroupedChanges, groups, options);
+    const total = groups.length + ungroupedChanges.length;
 
-    showSquawkTitle();
+    showSquawkHeader(total);
 
     const stats = await processFilesSequentially(
       repo, provider, ungroupedChanges, groups, commitTimestamps
     );
 
-    showSquawkSummary(stats);
+    showSquawkFooter(stats);
   } catch (error) {
     const err = error as Error;
     console.error(i18n.t('output.prefixes.error'), err.message);
@@ -495,32 +490,19 @@ class SquawkStats {
 }
 
 /**
- * Shows the squawk command title
+ * Shows the squawk header with total file count
  */
-function showSquawkTitle(): void {
+function showSquawkHeader(total: number): void {
   console.log();
-  console.log(chalk.cyan.bold('🦜 Squawk - Committing Files Individually'));
-  const separator = '━'.repeat(Math.min(process.stdout.columns - 2 || 78, 80));
-  console.log(chalk.dim(separator));
+  console.log(chalk.bold('squawk') + chalk.dim(`  ${total} file${total === 1 ? '' : 's'}`));
   console.log();
 }
 
-// ── Live progress display ─────────────────────────────────────────────────────
-
-function renderSquawkProgress(
-  processed: number,
-  total: number,
-  currentFile: string,
-  lastCommit: string,
-  spinnerFrame: number
-): string {
-  const frames = TransientProgress.SPINNERS.dots;
-  const spinner = chalk.cyan(frames[spinnerFrame % frames.length]);
-  return [
-    `  ${chalk.dim('files processed:')} ${chalk.white(`${processed}/${total}`)} ${spinner}`,
-    `  ${chalk.dim('current file:')} ${chalk.white(currentFile || '—')}`,
-    `  ${chalk.dim('last commit:')} ${lastCommit ? chalk.dim(`'${lastCommit}'`) : chalk.dim('—')}`,
-  ].join('\n');
+/**
+ * Prints the [N/total] filename header for a single item
+ */
+function printFileHeader(index: number, total: number, filename: string): void {
+  console.log(`  ${chalk.dim(`[${index}/${total}]`)} ${chalk.white(filename)}`);
 }
 
 /**
@@ -535,18 +517,8 @@ async function processFilesSequentially(
 ): Promise<SquawkStats> {
   const stats = new SquawkStats();
   const ctx: ProcessContext = { repo, provider, stats };
-
   const total = groups.length + changes.length;
-  let processed = 0;
-  let currentFile = '';
-  let lastCommit = '';
-  let spinnerFrame = 0;
-
-  logUpdate(renderSquawkProgress(0, total, '', '', 0));
-  const animInterval = setInterval(() => {
-    spinnerFrame = (spinnerFrame + 1) % TransientProgress.SPINNERS.dots.length;
-    logUpdate(renderSquawkProgress(processed, total, currentFile, lastCommit, spinnerFrame));
-  }, 80);
+  let index = 0;
 
   try {
     // Process groups first
@@ -556,17 +528,12 @@ async function processFilesSequentially(
 
       if (group.files.length === 0) continue;
 
-      currentFile = group.files.map(f => f.value).join(', ');
+      index++;
+      printFileHeader(index, total, group.files.map(f => f.value).join(', '));
       const result = await processItem(ctx, group.files.map(f => f.value), timestamp);
-      processed++;
 
-      if (result === 'failed') {
-        stats.incrementFailed();
-      } else if (result === 'skipped') {
-        stats.incrementSkipped();
-      } else if (result === 'committed') {
-        lastCommit = stats.lastGitOutput;
-      }
+      if (result === 'failed') stats.incrementFailed();
+      else if (result === 'skipped') stats.incrementSkipped();
     }
 
     // Process individual files
@@ -574,26 +541,18 @@ async function processFilesSequentially(
       const change = changes[i];
       const timestamp = timestamps ? timestamps[groups.length + i] : null;
 
-      currentFile = change.value;
+      index++;
+      printFileHeader(index, total, change.value);
       const result = await processItem(ctx, [change.value], timestamp);
-      processed++;
 
-      if (result === 'failed') {
-        stats.incrementFailed();
-      } else if (result === 'skipped') {
-        stats.incrementSkipped();
-      } else if (result === 'committed') {
-        lastCommit = stats.lastGitOutput;
-      }
+      if (result === 'failed') stats.incrementFailed();
+      else if (result === 'skipped') stats.incrementSkipped();
     }
   } catch (error) {
     // Circuit breaker: a fatal provider error was re-thrown by processItem.
-    // Abort the loop and surface the reason in the summary.
+    console.log(chalk.dim('        ⚡ aborted — remaining files not processed'));
     stats.abort((error as Error).message);
   }
-
-  clearInterval(animInterval);
-  logUpdate.clear();
 
   return stats;
 }
@@ -607,7 +566,6 @@ async function processItem(
   timestamp: Date | null
 ): Promise<string> {
   const { repo, provider } = ctx;
-  const displayName = files.join(', ');
 
   try {
     await repo.add(files);
@@ -617,29 +575,29 @@ async function processItem(
     const commitMessage = await provider.generateCommitMessage(context);
 
     if (!commitMessage) {
+      console.log(chalk.dim('        ⊘ skipped'));
+      console.log();
       return 'skipped';
     }
 
     const output = commitFile(repo, files, commitMessage, timestamp);
     ctx.stats.addCommitted(commitMessage, output);
+
+    output.trim().split('\n').forEach(line => {
+      console.log(chalk.dim(`        ${line}`));
+    });
+    console.log();
+
     return 'committed';
   } catch (error) {
     const err = error as Error;
+    console.log(chalk.red(`        ✗ ${err.message}`));
+    console.log();
     if (isFatalProviderError(err)) {
       throw err; // circuit breaker: let the loop abort early
     }
-    logFileError(displayName, err.message);
     return 'failed';
   }
-}
-
-/**
- * Logs file errors (stored for later display)
- */
-const fileErrors: FileError[] = [];
-
-function logFileError(filename: string, error: string): void {
-  fileErrors.push({ filename, error });
 }
 
 /**
@@ -659,45 +617,21 @@ function commitFile(
 }
 
 /**
- * Displays a detailed summary after all processing is cleared
+ * Displays a compact summary line after all files are processed
  */
-function showSquawkSummary(stats: SquawkStats): void {
+function showSquawkFooter(stats: SquawkStats): void {
+  const parts: string[] = [];
+
+  if (stats.completed > 0) parts.push(chalk.green(`${stats.completed} committed`));
+  if (stats.failed > 0)    parts.push(chalk.red(`${stats.failed} failed`));
+  if (stats.skipped > 0)   parts.push(chalk.yellow(`${stats.skipped} skipped`));
+  if (stats.abortReason)   parts.push(chalk.red('aborted'));
+
+  const elapsed = chalk.dim(`(${stats.getElapsed()}s)`);
+  const summary = parts.length > 0
+    ? parts.join(chalk.dim(' · '))
+    : chalk.dim('nothing committed');
+
+  console.log(`  ${summary}  ${elapsed}`);
   console.log();
-  console.log(chalk.cyan.bold('🦜 Squawk — Summary'));
-  const separator = '━'.repeat(Math.min(process.stdout.columns - 2 || 78, 80));
-  console.log(chalk.dim(separator));
-  console.log();
-
-  const total = stats.getTotal();
-
-  if (stats.completed > 0) {
-    console.log(chalk.green(`  ✓ ${stats.completed} committed`));
-    stats.committedMessages.forEach(msg => {
-      console.log(chalk.dim(`    ${msg}`));
-    });
-  }
-  if (stats.skipped > 0) {
-    console.log(chalk.yellow(`  ⊘ ${stats.skipped} skipped`));
-  }
-  if (stats.failed > 0) {
-    console.log(chalk.red(`  ✗ ${stats.failed} failed`));
-    if (fileErrors.length > 0) {
-      fileErrors.forEach(({ filename, error }) => {
-        console.log(chalk.red(`    ${filename}: ${error}`));
-      });
-    }
-  }
-
-  if (stats.abortReason) {
-    console.log();
-    console.log(chalk.red(`  ⚡ Aborted: ${stats.abortReason}`));
-    console.log(chalk.dim('  Remaining files were not processed.'));
-  }
-
-  console.log();
-  console.log(chalk.dim(`  ${total} files processed in ${stats.getElapsed()}s`));
-  console.log();
-
-  // Clear errors for next run
-  fileErrors.length = 0;
 }
