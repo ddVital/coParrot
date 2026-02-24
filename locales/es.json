@@ -235,6 +235,8 @@
     "setupFailed": "La configuración falló. Por favor, intenta de nuevo.",
     "setupCancelled": "Configuración cancelada.",
     "configSaved": "Configuración guardada en: {path}",
+    "envVarDetected": "Clave API detectada en la variable de entorno {envVar}.",
+    "envVarHint": "La variable de entorno se usará automáticamente. No es necesario ingresar una clave.",
     "readyToGo": "¡Todo listo! Iniciando coParrot..."
   },
   "config": {
