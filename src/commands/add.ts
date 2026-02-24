@@ -1,4 +1,5 @@
 import { checkbox } from '@inquirer/prompts';
+import chalk from 'chalk';
 import MarkdownRenderer from '../lib/renderer.js';
 import i18n from '../services/i18n.js';
 import type GitRepository from '../services/git.js';
@@ -13,7 +14,7 @@ interface PromptError extends Error {
  */
 export async function selectFilesToAdd(files: string[]): Promise<string[]> {
   if (!files || !Array.isArray(files) || files.length === 0) {
-    throw new Error(i18n.t('git.add.noFilesAvailable'));
+    return [];
   }
 
   try {
@@ -42,23 +43,22 @@ export async function selectFilesToAdd(files: string[]): Promise<string[]> {
  * Adds selected files to git staging area
  */
 export async function gitAdd(repo: GitRepository, changes: GitChange[]): Promise<void> {
-  try {
-    const filePaths = changes.map(c => c.value);
-    const selectedFiles = await selectFilesToAdd(filePaths);
-
-    repo.restoreAll();
-
-    if (selectedFiles.length === 0) {
-      console.log(i18n.t('git.add.noFilesSelected'));
-      return;
-    }
-
-    repo.add(selectedFiles);
-  } catch (error) {
-    const err = error as Error;
-    console.error(i18n.t('output.prefixes.error'), err.message);
-    throw error;
+  if (changes.length === 0) {
+    console.log(chalk.dim(i18n.t('git.add.noFilesAvailable')));
+    return;
   }
+
+  const filePaths = changes.map(c => c.value);
+  const selectedFiles = await selectFilesToAdd(filePaths);
+
+  repo.restoreAll();
+
+  if (selectedFiles.length === 0) {
+    console.log(chalk.dim(i18n.t('git.add.noFilesSelected')));
+    return;
+  }
+
+  repo.add(selectedFiles);
 }
 
 /**
