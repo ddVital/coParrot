@@ -24,8 +24,7 @@ async function interactiveCommit(repo: GitRepository, provider: LLMOrchestrator,
   const diff = repo.diff([], { staged: true, compact: true });
 
   if (!diff) {
-    cli.streamer.showWarning(i18n.t('git.commit.noFilesStaged'));
-    cli.streamer.showInfo(i18n.t('git.commit.useAddFirst'));
+    cli.streamer.showNothing(i18n.t('git.commit.noFilesStaged'));
     return;
   }
 
