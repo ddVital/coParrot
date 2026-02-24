@@ -120,8 +120,22 @@ export async function handlePrCommand(
     }
   }
 
-  // Create the PR
-  const prResult = gh.createPr(title.trim(), body.trim(), baseBranch);
+  // Create the PR — auto-push branch if it hasn't been pushed yet
+  let prResult: string;
+  try {
+    prResult = gh.createPr(title.trim(), body.trim(), baseBranch);
+  } catch (error) {
+    const err = error as Error;
+    if (!err.message.includes('push the current branch')) {
+      throw error;
+    }
+    // Branch not on remote yet — push it and retry
+    streamer.startThinking(i18n.t('pr.pushingBranch'));
+    repo.push({ branch: currentBranch, setUpstream: true });
+    streamer.stopThinking();
+    prResult = gh.createPr(title.trim(), body.trim(), baseBranch);
+  }
+
   streamer.showSuccess(i18n.t('pr.created'));
 
   // Print the PR URL (gh pr create outputs the URL)
