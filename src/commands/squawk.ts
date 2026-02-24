@@ -330,7 +330,7 @@ export async function squawk(
     const allChanges = repo.getDetailedStatus();
 
     if (allChanges.length === 0) {
-      console.log(chalk.yellow(i18n.t('git.squawk.noChanges')));
+      console.log(chalk.dim(i18n.t('git.squawk.noChanges')));
       return;
     }
 
