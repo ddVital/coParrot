@@ -17,10 +17,6 @@ export async function handlePrCommand(
 ): Promise<void> {
   const streamer = new StreamingOutput(null);
 
-  if (!loadContext()) {
-    streamer.showInfo(i18n.t('context.hint'));
-  }
-
   // Validate gh CLI (throws if not installed/authenticated)
   const gh = new GithubCli();
 
@@ -39,8 +35,13 @@ export async function handlePrCommand(
   // Get commits ahead of base
   const logs = repo.log({ limit: 0, aheadof: baseBranch });
   if (!logs.trim()) {
-    streamer.showWarning(i18n.t('pr.noBranchDiff', { base: baseBranch }));
+    streamer.showNothing(i18n.t('pr.noBranchDiff', { base: baseBranch }));
     return;
+  }
+
+  // Context tip — only shown when we're actually about to generate content
+  if (!loadContext()) {
+    streamer.showInfo(i18n.t('context.hint'));
   }
 
   const commits = logs.trim().split('\n').filter(Boolean);
