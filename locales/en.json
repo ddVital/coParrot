@@ -88,8 +88,8 @@
     },
     "add": {
       "selectFiles": "Choose files to stage for commit (Space to select, Enter to confirm)",
-      "noFilesSelected": "No files were staged. Your working directory remains unchanged.",
-      "noFilesAvailable": "No files available to stage",
+      "noFilesSelected": "no files staged",
+      "noFilesAvailable": "nothing to stage, working tree clean",
       "successStaged": "Successfully staged {count} {files}",
       "nextStep": "**Next step:** Run `/commit` to create your commit, or continue staging more files.",
       "files": {
@@ -98,7 +98,7 @@
       }
     },
     "commit": {
-      "noFilesStaged": "No files staged for commit!",
+      "noFilesStaged": "nothing to commit — no files staged",
       "useAddFirst": "Use /add to stage files first, or try /squawk to commit files individually.",
       "successCommited": ""
     },
@@ -110,7 +110,7 @@
       "committingFile": "Committing file:",
       "fileComplete": "File committed successfully!",
       "allComplete": "All files committed successfully!",
-      "noChanges": "No files with changes to commit.",
+      "noChanges": "nothing to commit, working tree clean",
       "allFilesIgnored": "All files are ignored. Nothing to commit.",
       "ignoringFiles": "Ignoring {count} file(s) matching: {patterns}",
       "groupingFiles": "Grouping {count} file(s) into {groups} group(s): {patterns}",
@@ -150,6 +150,7 @@
       "commandFailed": "Git command failed: {message}"
     },
     "status": {
+      "clean": "nothing to commit, working tree clean",
       "modified": "Modified",
       "added": "Added",
       "deleted": "Deleted",
@@ -305,7 +306,7 @@
   },
   "pr": {
     "uncommittedChanges": "You have uncommitted changes. Please commit or stash them before creating a PR.",
-    "noBranchDiff": "No commits ahead of {base}. Nothing to open a PR for.",
+    "noBranchDiff": "nothing to open — no commits ahead of {base}",
     "created": "Pull request created successfully!",
     "pushingBranch": "Pushing branch to remote..."
   },

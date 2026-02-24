@@ -15,6 +15,7 @@ import { hookCommand } from '../src/commands/hook.js';
 import i18n from '../src/services/i18n.js';
 import { VERSION } from '../src/utils/index.js';
 import { handlePrCommand } from '../src/commands/pr.js';
+import { gitStatus } from '../src/commands/status.js';
 import { contextCommand } from '../src/commands/context.js';
 import { loadContext } from '../src/services/context.js';
 import type { GitChange } from '../src/services/git.js';
@@ -58,7 +59,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       cli.streamer.showSuccess('Test command executed successfully!');
       break;
     case 'status':
-      cli.streamer.showGitInfo(status)
+      gitStatus(repo, cli.streamer);
       break;
     case 'context':
       await contextCommand(args);
