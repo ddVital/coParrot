@@ -175,6 +175,7 @@ class StreamingOutput {
   showNothing(message: string): void {
     this.stopThinking();
     console.log(chalk.dim(message));
+    console.log();
   }
 
   /**
