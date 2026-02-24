@@ -56,8 +56,8 @@
   "git": {
     "add": {
       "selectFiles": "Escolha arquivos para preparar para commit (Espaço para selecionar, Enter para confirmar)",
-      "noFilesSelected": "Nenhum arquivo foi preparado. Seu diretório de trabalho permanece inalterado.",
-      "noFilesAvailable": "Nenhum arquivo disponível para preparar",
+      "noFilesSelected": "nenhum arquivo preparado",
+      "noFilesAvailable": "nada para preparar, árvore de trabalho limpa",
       "successStaged": "{count} {files} preparado(s) com sucesso",
       "nextStep": "**Próximo passo:** Execute `/commit` para criar seu commit, ou continue preparando mais arquivos.",
       "files": {
@@ -66,7 +66,7 @@
       }
     },
     "commit": {
-      "noFilesStaged": "Nenhum arquivo preparado para commit!",
+      "noFilesStaged": "nada para commitar — nenhum arquivo preparado",
       "useAddFirst": "Use /add para preparar arquivos primeiro, ou tente /squawk para fazer commit dos arquivos individualmente."
     },
     "squawk": {
@@ -77,7 +77,7 @@
       "committingFile": "Fazendo commit do arquivo:",
       "fileComplete": "Arquivo committed com sucesso!",
       "allComplete": "Todos os arquivos committed com sucesso!",
-      "noChanges": "Nenhum arquivo com alterações para commit.",
+      "noChanges": "nada para commitar, árvore de trabalho limpa",
       "allFilesIgnored": "Todos os arquivos foram ignorados. Nada para commit.",
       "ignoringFiles": "Ignorando {count} arquivo(s) correspondente(s): {patterns}",
       "groupingFiles": "Agrupando {count} arquivo(s) em {groups} grupo(s): {patterns}",
@@ -117,6 +117,7 @@
       "commandFailed": "Comando git falhou: {message}"
     },
     "status": {
+      "clean": "nada para commitar, árvore de trabalho limpa",
       "modified": "Modificado",
       "added": "Adicionado",
       "deleted": "Excluído",
@@ -272,7 +273,7 @@
   },
   "pr": {
     "uncommittedChanges": "Você tem alterações não commitadas. Por favor, faça commit ou stash antes de criar um PR.",
-    "noBranchDiff": "Nenhum commit à frente de {base}. Nada para abrir um PR.",
+    "noBranchDiff": "nada para abrir — sem commits à frente de {base}",
     "created": "Pull request criado com sucesso!",
     "pushingBranch": "Enviando branch para o remoto..."
   },
