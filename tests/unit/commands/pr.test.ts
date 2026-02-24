@@ -17,6 +17,7 @@ vi.mock('../../../src/lib/streamer.js', () => ({
     showError: vi.fn(),
     showInfo: vi.fn(),
     showSuccess: vi.fn(),
+    showNothing: vi.fn(),
   })),
 }))
 
