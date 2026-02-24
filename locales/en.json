@@ -306,7 +306,8 @@
   "pr": {
     "uncommittedChanges": "You have uncommitted changes. Please commit or stash them before creating a PR.",
     "noBranchDiff": "No commits ahead of {base}. Nothing to open a PR for.",
-    "created": "Pull request created successfully!"
+    "created": "Pull request created successfully!",
+    "pushingBranch": "Pushing branch to remote..."
   },
   "context": {
     "titlePrompt": "Enter context title:",
