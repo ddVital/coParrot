@@ -170,6 +170,14 @@ class StreamingOutput {
   }
 
   /**
+   * Display a "nothing to do" state — dim, no icon, mirrors how git itself responds
+   */
+  showNothing(message: string): void {
+    this.stopThinking();
+    console.log(chalk.dim(message));
+  }
+
+  /**
    * Display warning message
    */
   showWarning(message: string): void {
