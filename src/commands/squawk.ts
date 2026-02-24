@@ -1,8 +1,10 @@
 import i18n from '../services/i18n.js';
 import chalk from 'chalk';
+import logUpdate from 'log-update';
 import { filterByGlob, matchesAnyPattern } from '../utils/glob.js';
 import { confirm, input } from '@inquirer/prompts';
 import { parseFlag, hasFlag } from '../utils/args-parser.js';
+import TransientProgress from '../utils/transient-progress.js';
 import type GitRepository from '../services/git.js';
 import type LLMOrchestrator from '../services/llms.js';
 
@@ -452,6 +454,7 @@ class SquawkStats {
   skipped: number;
   startTime: number;
   committedMessages: string[];
+  lastGitOutput: string;
   abortReason: string | null;
 
   constructor() {
@@ -460,12 +463,14 @@ class SquawkStats {
     this.skipped = 0;
     this.startTime = Date.now();
     this.committedMessages = [];
+    this.lastGitOutput = '';
     this.abortReason = null;
   }
 
-  addCommitted(message: string): void {
+  addCommitted(message: string, gitOutput: string): void {
     this.completed++;
     this.committedMessages.push(message);
+    this.lastGitOutput = gitOutput.trim();
   }
 
   incrementFailed(): void {
@@ -500,6 +505,24 @@ function showSquawkTitle(): void {
   console.log();
 }
 
+// ── Live progress display ─────────────────────────────────────────────────────
+
+function renderSquawkProgress(
+  processed: number,
+  total: number,
+  currentFile: string,
+  lastCommit: string,
+  spinnerFrame: number
+): string {
+  const frames = TransientProgress.SPINNERS.dots;
+  const spinner = chalk.cyan(frames[spinnerFrame % frames.length]);
+  return [
+    `  ${chalk.dim('files processed:')} ${chalk.white(`${processed}/${total}`)} ${spinner}`,
+    `  ${chalk.dim('current file:')} ${chalk.white(currentFile || '—')}`,
+    `  ${chalk.dim('last commit:')} ${lastCommit ? chalk.dim(`'${lastCommit}'`) : chalk.dim('—')}`,
+  ].join('\n');
+}
+
 /**
  * Processes each file sequentially: stage, generate message, commit
  */
@@ -513,6 +536,18 @@ async function processFilesSequentially(
   const stats = new SquawkStats();
   const ctx: ProcessContext = { repo, provider, stats };
 
+  const total = groups.length + changes.length;
+  let processed = 0;
+  let currentFile = '';
+  let lastCommit = '';
+  let spinnerFrame = 0;
+
+  logUpdate(renderSquawkProgress(0, total, '', '', 0));
+  const animInterval = setInterval(() => {
+    spinnerFrame = (spinnerFrame + 1) % TransientProgress.SPINNERS.dots.length;
+    logUpdate(renderSquawkProgress(processed, total, currentFile, lastCommit, spinnerFrame));
+  }, 80);
+
   try {
     // Process groups first
     for (let j = 0; j < groups.length; j++) {
@@ -521,12 +556,16 @@ async function processFilesSequentially(
 
       if (group.files.length === 0) continue;
 
+      currentFile = group.files.map(f => f.value).join(', ');
       const result = await processItem(ctx, group.files.map(f => f.value), timestamp);
+      processed++;
 
       if (result === 'failed') {
         stats.incrementFailed();
       } else if (result === 'skipped') {
         stats.incrementSkipped();
+      } else if (result === 'committed') {
+        lastCommit = stats.lastGitOutput;
       }
     }
 
@@ -535,12 +574,16 @@ async function processFilesSequentially(
       const change = changes[i];
       const timestamp = timestamps ? timestamps[groups.length + i] : null;
 
+      currentFile = change.value;
       const result = await processItem(ctx, [change.value], timestamp);
+      processed++;
 
       if (result === 'failed') {
         stats.incrementFailed();
       } else if (result === 'skipped') {
         stats.incrementSkipped();
+      } else if (result === 'committed') {
+        lastCommit = stats.lastGitOutput;
       }
     }
   } catch (error) {
@@ -548,6 +591,9 @@ async function processFilesSequentially(
     // Abort the loop and surface the reason in the summary.
     stats.abort((error as Error).message);
   }
+
+  clearInterval(animInterval);
+  logUpdate.clear();
 
   return stats;
 }
@@ -575,8 +621,7 @@ async function processItem(
     }
 
     const output = commitFile(repo, files, commitMessage, timestamp);
-    ctx.stats.addCommitted(commitMessage);
-    console.log(output);
+    ctx.stats.addCommitted(commitMessage, output);
     return 'committed';
   } catch (error) {
     const err = error as Error;
