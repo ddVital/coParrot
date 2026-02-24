@@ -1,10 +1,8 @@
 import i18n from '../services/i18n.js';
 import chalk from 'chalk';
 import { filterByGlob, matchesAnyPattern } from '../utils/glob.js';
-import TransientProgress from '../utils/transient-progress.js';
-import { select, confirm, input } from '@inquirer/prompts';
+import { confirm, input } from '@inquirer/prompts';
 import { parseFlag, hasFlag } from '../utils/args-parser.js';
-import { isWindows } from '../utils/platform.js';
 import type GitRepository from '../services/git.js';
 import type LLMOrchestrator from '../services/llms.js';
 
@@ -37,7 +35,6 @@ interface DateOptions {
 interface SquawkOptions extends DateOptions {
   ignore?: string[];
   group?: string[];
-  skipApproval?: boolean;
 }
 
 interface ItemWithComplexity {
@@ -53,17 +50,13 @@ interface FileError {
 interface ProcessContext {
   repo: GitRepository;
   provider: LLMOrchestrator;
-  progress: TransientProgress;
   stats: SquawkStats;
-  skipApproval: boolean;
-  totalItems: number;
-  lastCommitMessage: string;
 }
 
 /**
  * Calculates commit timestamps distributed across a date range
  */
-function calculateCommitTimestamps(
+export function calculateCommitTimestamps(
   ungroupedChanges: GitChange[],
   groups: FileGroup[],
   options: DateOptions
@@ -172,7 +165,7 @@ function calculateCommitTimestamps(
 /**
  * Calculates total available working time in milliseconds
  */
-function calculateAvailableWorkingTime(
+export function calculateAvailableWorkingTime(
   startDate: Date,
   endDate: Date,
   excludeWeekends: boolean | undefined
@@ -198,7 +191,7 @@ function calculateAvailableWorkingTime(
 /**
  * Skips to next working time if current time is outside working hours or on weekend
  */
-function skipToNextWorkingTime(
+export function skipToNextWorkingTime(
   date: Date,
   excludeWeekends: boolean | undefined,
   endDate: Date
@@ -319,7 +312,6 @@ export async function squawk(
   const timezone = parseFlag(args, '--timezone')[0];
   const excludeWeekends = hasFlag(args, '--exclude-weekends');
   const interactive = hasFlag(args, ['-i', '--interactive']);
-  const skipApproval = hasFlag(args, ['-y', '--yes']);
 
   let options: SquawkOptions = {
     ignore: ignoredFiles.length > 0 ? ignoredFiles : undefined,
@@ -327,8 +319,7 @@ export async function squawk(
     from: fromDate || undefined,
     to: toDate || undefined,
     timezone: timezone || undefined,
-    excludeWeekends,
-    skipApproval
+    excludeWeekends
   };
 
   if (interactive) {
@@ -353,17 +344,11 @@ export async function squawk(
 
     const commitTimestamps = calculateCommitTimestamps(ungroupedChanges, groups, options);
 
-    // Save cursor position before processing output (DEC sequences not supported on Windows)
-    if (!isWindows) process.stdout.write('\x1b7');
-
     showSquawkTitle();
 
     const stats = await processFilesSequentially(
-      repo, provider, ungroupedChanges, groups, commitTimestamps, skipApproval
+      repo, provider, ungroupedChanges, groups, commitTimestamps
     );
-
-    // Restore cursor and clear everything from processing
-    if (!isWindows) process.stdout.write('\x1b8\x1b[0J');
 
     showSquawkSummary(stats);
   } catch (error) {
@@ -376,7 +361,7 @@ export async function squawk(
 /**
  * Applies ignore patterns to filter out unwanted files
  */
-function applyIgnorePatterns(changes: GitChange[], ignorePatterns?: string[]): GitChange[] {
+export function applyIgnorePatterns(changes: GitChange[], ignorePatterns?: string[]): GitChange[] {
   if (!ignorePatterns || ignorePatterns.length === 0) {
     return changes;
   }
@@ -400,7 +385,7 @@ function applyIgnorePatterns(changes: GitChange[], ignorePatterns?: string[]): G
 /**
  * Applies group patterns to organize files into groups
  */
-function applyGroupPatterns(
+export function applyGroupPatterns(
   changes: GitChange[],
   groupPatterns?: string[]
 ): { groups: FileGroup[]; ungroupedChanges: GitChange[] } {
@@ -433,6 +418,30 @@ function applyGroupPatterns(
   return { groups, ungroupedChanges };
 }
 
+// ── Circuit breaker ──────────────────────────────────────────────────────────
+
+/**
+ * Error patterns that indicate the provider/infrastructure is broken for ALL
+ * subsequent files — retrying per-file won't help.
+ */
+const FATAL_ERROR_PATTERNS = [
+  'Ollama server not running',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'ECONNRESET',
+  'Invalid API key',
+  'Unauthorized',
+  'Authentication',
+];
+
+export function isFatalProviderError(error: Error): boolean {
+  const msg = error.message;
+  return FATAL_ERROR_PATTERNS.some(pattern => msg.includes(pattern));
+}
+
+// ── Stats tracker ─────────────────────────────────────────────────────────────
+
 /**
  * Stats tracker for squawk command
  */
@@ -442,6 +451,7 @@ class SquawkStats {
   skipped: number;
   startTime: number;
   committedMessages: string[];
+  abortReason: string | null;
 
   constructor() {
     this.completed = 0;
@@ -449,6 +459,7 @@ class SquawkStats {
     this.skipped = 0;
     this.startTime = Date.now();
     this.committedMessages = [];
+    this.abortReason = null;
   }
 
   addCommitted(message: string): void {
@@ -462,6 +473,10 @@ class SquawkStats {
 
   incrementSkipped(): void {
     this.skipped++;
+  }
+
+  abort(reason: string): void {
+    this.abortReason = reason;
   }
 
   getElapsed(): string {
@@ -492,82 +507,48 @@ async function processFilesSequentially(
   provider: LLMOrchestrator,
   changes: GitChange[],
   groups: FileGroup[],
-  timestamps: Date[] | null = null,
-  skipApproval: boolean = false
+  timestamps: Date[] | null = null
 ): Promise<SquawkStats> {
   const stats = new SquawkStats();
-  const progress = new TransientProgress();
-  const totalItems = groups.length + changes.length;
+  const ctx: ProcessContext = { repo, provider, stats };
 
-  const ctx: ProcessContext = {
-    repo, provider, progress, stats, skipApproval, totalItems, lastCommitMessage: ''
-  };
+  try {
+    // Process groups first
+    for (let j = 0; j < groups.length; j++) {
+      const group = groups[j];
+      const timestamp = timestamps ? timestamps[j] : null;
 
-  // Process groups first
-  for (let j = 0; j < groups.length; j++) {
-    const group = groups[j];
-    const timestamp = timestamps ? timestamps[j] : null;
+      if (group.files.length === 0) continue;
 
-    if (group.files.length === 0) continue;
+      const result = await processItem(ctx, group.files.map(f => f.value), timestamp);
 
-    const displayName = group.pattern;
-    const processed = stats.getTotal();
-
-    const result = await processItem(
-      ctx, displayName, group.files.map(f => f.value), timestamp, processed
-    );
-
-    if (result === 'failed') {
-      stats.incrementFailed();
-    } else if (result === 'skipped') {
-      stats.incrementSkipped();
+      if (result === 'failed') {
+        stats.incrementFailed();
+      } else if (result === 'skipped') {
+        stats.incrementSkipped();
+      }
     }
-  }
 
-  // Process individual files
-  for (let i = 0; i < changes.length; i++) {
-    const change = changes[i];
-    const timestamp = timestamps ? timestamps[groups.length + i] : null;
-    const processed = stats.getTotal();
+    // Process individual files
+    for (let i = 0; i < changes.length; i++) {
+      const change = changes[i];
+      const timestamp = timestamps ? timestamps[groups.length + i] : null;
 
-    const result = await processItem(
-      ctx, change.value, [change.value], timestamp, processed
-    );
+      const result = await processItem(ctx, [change.value], timestamp);
 
-    if (result === 'failed') {
-      stats.incrementFailed();
-    } else if (result === 'skipped') {
-      stats.incrementSkipped();
+      if (result === 'failed') {
+        stats.incrementFailed();
+      } else if (result === 'skipped') {
+        stats.incrementSkipped();
+      }
     }
+  } catch (error) {
+    // Circuit breaker: a fatal provider error was re-thrown by processItem.
+    // Abort the loop and surface the reason in the summary.
+    stats.abort((error as Error).message);
   }
 
   return stats;
-}
-
-/**
- * Shows animated bottom progress via TransientProgress
- */
-function showProgress(
-  progress: TransientProgress,
-  current: number,
-  total: number,
-  fileName: string,
-  lastCommit: string
-): void {
-  const substeps = [
-    i18n.t('git.squawk.progress.currentFile', { file: fileName })
-  ];
-  if (lastCommit) {
-    substeps.push(i18n.t('git.squawk.progress.lastCommit', { message: lastCommit }));
-  }
-
-  progress.start();
-  progress.updateStep(
-    'squawk-progress',
-    i18n.t('git.squawk.progress.filesProcessed', { current, total }),
-    'generating',
-    substeps
-  );
 }
 
 /**
@@ -575,84 +556,32 @@ function showProgress(
  */
 async function processItem(
   ctx: ProcessContext,
-  displayName: string,
   files: string[],
-  timestamp: Date | null,
-  processedSoFar: number,
-  customInstructions: string | null = null
+  timestamp: Date | null
 ): Promise<string> {
-  const { repo, provider, progress, skipApproval, totalItems } = ctx;
+  const { repo, provider } = ctx;
+  const displayName = files.join(', ');
 
   try {
-    // Stage files
     await repo.add(files);
 
-    // Show animated bottom progress during generation
-    const currentNum = processedSoFar + 1;
-    showProgress(progress, currentNum, totalItems, displayName, ctx.lastCommitMessage);
-
-    // Generate commit message using provider.call() directly (no built-in UI)
-    const diff = repo.diff([], { staged: true });
+    const diff = repo.diff([], { staged: true, compact: true });
     const context = { diff, stagedFiles: repo.getStagedFiles() };
-    const commitMessage = await provider.call(context, 'commit', customInstructions);
+    const commitMessage = await provider.generateCommitMessage(context);
 
-    // Clear animated progress
-    progress.stop(false);
-
-    if (skipApproval) {
-      // Auto-approve: commit and show git output
-      const output = commitFile(repo, files, commitMessage, timestamp);
-      ctx.lastCommitMessage = commitMessage;
-      ctx.stats.addCommitted(commitMessage);
-      console.log(output);
-      return 'committed';
-    }
-
-    // Show commit message for approval (transient)
-    console.log();
-    console.log(chalk.rgb(34, 197, 94)('> ') + chalk.white(commitMessage));
-    console.log();
-
-    // Interactive approval (prompt clears itself)
-    const action = await select({
-      message: i18n.t('git.squawk.approval.message'),
-      choices: [
-        { name: i18n.t('git.squawk.approval.approve'), value: 'approve' },
-        { name: i18n.t('git.squawk.approval.skip'), value: 'skip' },
-        { name: i18n.t('git.squawk.approval.retry'), value: 'retry' },
-        { name: i18n.t('git.squawk.approval.retryWithInstructions'), value: 'retry_with_instructions' }
-      ]
-    }, {
-      clearPromptOnDone: true
-    });
-
-    // Clear the transient commit message (3 lines: blank, message, blank)
-    process.stdout.write('\x1b[3A\x1b[0J');
-
-    if (action === 'approve') {
-      const output = commitFile(repo, files, commitMessage, timestamp);
-      ctx.lastCommitMessage = commitMessage;
-      ctx.stats.addCommitted(commitMessage);
-      // Show git output during processing
-      console.log(output);
-      return 'committed';
-    } else if (action === 'skip') {
+    if (!commitMessage) {
       return 'skipped';
-    } else if (action === 'retry') {
-      return await processItem(ctx, displayName, files, timestamp, processedSoFar);
-    } else if (action === 'retry_with_instructions') {
-      const instructions = await input({
-        message: i18n.t('git.squawk.approval.instructionsPrompt')
-      }, {
-        clearPromptOnDone: true
-      });
-      return await processItem(ctx, displayName, files, timestamp, processedSoFar, instructions || null);
     }
 
-    return 'skipped';
+    const output = commitFile(repo, files, commitMessage, timestamp);
+    ctx.stats.addCommitted(commitMessage);
+    console.log(output);
+    return 'committed';
   } catch (error) {
-    progress.stop(false);
     const err = error as Error;
+    if (isFatalProviderError(err)) {
+      throw err; // circuit breaker: let the loop abort early
+    }
     logFileError(displayName, err.message);
     return 'failed';
   }
@@ -711,6 +640,12 @@ function showSquawkSummary(stats: SquawkStats): void {
         console.log(chalk.red(`    ${filename}: ${error}`));
       });
     }
+  }
+
+  if (stats.abortReason) {
+    console.log();
+    console.log(chalk.red(`  ⚡ Aborted: ${stats.abortReason}`));
+    console.log(chalk.dim('  Remaining files were not processed.'));
   }
 
   console.log();
