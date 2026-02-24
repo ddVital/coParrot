@@ -128,6 +128,56 @@ describe('handlePrCommand - uncommitted changes', () => {
   })
 })
 
+describe('handlePrCommand - auto-push unpushed branch', () => {
+  it('pushes branch and retries when gh says branch not on remote', async () => {
+    const unpushedError = new Error(
+      'GitHub CLI command failed: aborted: you must first push the current branch to a remote, or use the --head flag'
+    )
+    // First createPr call fails with the push error, second succeeds
+    ghMocks.createPr
+      .mockImplementationOnce(() => { throw unpushedError })
+      .mockReturnValue('https://github.com/test/test-repo/pull/2')
+
+    const repo = createMockRepo({
+      getDetailedStatus: vi.fn().mockReturnValue([]),
+      getCurrentBranch: vi.fn().mockReturnValue('feat/unpushed'),
+      baseBranch: vi.fn().mockReturnValue('main'),
+      log: vi.fn().mockReturnValue('abc1234 feat: unpushed feature'),
+      diff: vi.fn().mockReturnValue('+ new code'),
+    })
+    const provider = createMockProvider({
+      call: vi.fn().mockResolvedValue('PR title or body'),
+    })
+    provider.options.skipApproval = true
+
+    await handlePrCommand([], repo, provider)
+
+    expect(repo.push).toHaveBeenCalledWith({ branch: 'feat/unpushed', setUpstream: true })
+    expect(ghMocks.createPr).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not push when gh fails for a different reason', async () => {
+    ghMocks.createPr.mockImplementation(() => {
+      throw new Error('GitHub CLI command failed: repository not found')
+    })
+
+    const repo = createMockRepo({
+      getDetailedStatus: vi.fn().mockReturnValue([]),
+      getCurrentBranch: vi.fn().mockReturnValue('feat/some-branch'),
+      baseBranch: vi.fn().mockReturnValue('main'),
+      log: vi.fn().mockReturnValue('abc1234 feat: something'),
+      diff: vi.fn().mockReturnValue('+ code'),
+    })
+    const provider = createMockProvider({
+      call: vi.fn().mockResolvedValue('title or body'),
+    })
+    provider.options.skipApproval = true
+
+    await expect(handlePrCommand([], repo, provider)).rejects.toThrow('repository not found')
+    expect(repo.push).not.toHaveBeenCalled()
+  })
+})
+
 describe('handlePrCommand - PR template', () => {
   it('reads PR template file when config path is set', async () => {
     const { detectPRTemplate } = await import('../../../src/commands/setup.js')
