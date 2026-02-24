@@ -29,7 +29,7 @@ describe('commitCommand - interactive mode', () => {
     await commitCommand(repo, provider, [], cli)
 
     expect(provider.generateCommitMessage).not.toHaveBeenCalled()
-    expect(cli.streamer.showWarning).toHaveBeenCalled()
+    expect(cli.streamer.showNothing).toHaveBeenCalled()
   })
 
   it('calls generateCommitMessage then repo.commit with returned message', async () => {
