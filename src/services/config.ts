@@ -3,7 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import { setup } from '../commands/setup.js';
 import i18n from './i18n.js';
-import { getConfigDir } from '../utils/platform.js';
+import { getConfigDir, isWindows } from '../utils/platform.js';
 
 // Types
 export interface CommitConvention {
@@ -38,6 +38,12 @@ const DEFAULT_CONVENTION_TYPE = 'conventional';
 const PROVIDER = {
   OLLAMA: 'ollama'
 } as const;
+
+const ENV_VAR_MAP: Record<string, string[]> = {
+  openai: ['OPENAI_API_KEY'],
+  claude: ['ANTHROPIC_API_KEY'],
+  gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY']
+};
 
 /**
  * Default configuration structure
@@ -75,7 +81,10 @@ const readConfigFile = (): AppConfig => {
 const writeConfigFile = (config: AppConfig): void => {
   ensureConfigDir();
   const data = JSON.stringify(config, null, JSON_INDENT);
-  fs.writeFileSync(CONFIG_PATH, data, CONFIG_ENCODING);
+  fs.writeFileSync(CONFIG_PATH, data, { encoding: CONFIG_ENCODING, mode: 0o600 });
+  if (!isWindows) {
+    fs.chmodSync(CONFIG_PATH, 0o600);
+  }
 };
 
 // Validation helpers
@@ -87,7 +96,7 @@ const hasValidCredentials = (config: AppConfig): boolean => {
   if (config.provider === PROVIDER.OLLAMA) {
     return !!config.ollamaUrl;
   }
-  return !!config.apiKey;
+  return !!resolveApiKey(config.provider, config.apiKey);
 };
 
 // Error handling
@@ -106,6 +115,34 @@ const showSetupSuccess = (configPath: string): void => {
   console.log(chalk.cyan('  ' + i18n.t('setup.readyToGo')));
   console.log();
 };
+
+/**
+ * Resolve API key: checks environment variables first, falls back to config value
+ */
+export function resolveApiKey(provider: string | null, configApiKey: string | null): string | null {
+  if (provider) {
+    const envVars = ENV_VAR_MAP[provider];
+    if (envVars) {
+      for (const envVar of envVars) {
+        const value = process.env[envVar];
+        if (value) return value;
+      }
+    }
+  }
+  return configApiKey ?? null;
+}
+
+/**
+ * Returns the name of the first detected env var for a provider, or null
+ */
+export function getEnvVarForProvider(provider: string): string | null {
+  const envVars = ENV_VAR_MAP[provider];
+  if (!envVars) return null;
+  for (const envVar of envVars) {
+    if (process.env[envVar]) return envVar;
+  }
+  return null;
+}
 
 /**
  * Load configuration from disk
