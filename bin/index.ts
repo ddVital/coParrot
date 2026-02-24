@@ -5,7 +5,7 @@ import gitRepository from '../src/services/git.js';
 import LLMOrchestrator from '../src/services/llms.js';
 import { program } from 'commander';
 import chalk from 'chalk';
-import { loadConfig, setupConfig } from '../src/services/config.js';
+import { loadConfig, setupConfig, resolveApiKey } from '../src/services/config.js';
 import { setupStep } from '../src/commands/setup.js';
 import { gitAdd } from '../src/commands/add.js';
 import { commitCommand } from '../src/commands/commit.js';
@@ -41,7 +41,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
   const sessionCtx = loadContext();
   const provider = new LLMOrchestrator({
     provider: config.provider as 'openai' | 'claude' | 'gemini' | 'ollama' | undefined,
-    apiKey: config.apiKey ?? undefined,
+    apiKey: resolveApiKey(config.provider, config.apiKey) ?? undefined,
     ollamaUrl: config.ollamaUrl ?? undefined,
     model: config.model ?? undefined,
     instructions: {
