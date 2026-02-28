@@ -1,8 +1,12 @@
 import { select, confirm, input, editor } from '@inquirer/prompts';
+import search from '@inquirer/search';
 import chalk from 'chalk';
 import i18n from '../services/i18n.js';
 import { loadConfig, saveConfig, getEnvVarForProvider } from '../services/config.js';
 import type { AppConfig } from '../services/config.js';
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import axios from 'axios';
 import fs from 'fs';
 
@@ -154,6 +158,65 @@ async function showApiKeyInstructions(provider: string): Promise<void> {
   });
 }
 
+async function fetchOpenAIModels(apiKey: string): Promise<string[]> {
+  const client = new OpenAI({ apiKey });
+  const page = await client.models.list();
+  const skip = ['whisper', 'tts', 'dall-e', 'embed', 'moderation', 'davinci-0', 'babbage-0', 'ada-0'];
+  return page.data
+    .map(m => m.id)
+    .filter(id => !skip.some(s => id.includes(s)))
+    .sort((a, b) => b.localeCompare(a)); // newest first
+}
+
+async function fetchAnthropicModels(apiKey: string): Promise<string[]> {
+  const client = new Anthropic({ apiKey });
+  const page = await client.models.list({ limit: 100 });
+  return page.data.map(m => m.id);
+}
+
+async function fetchGeminiModels(apiKey: string): Promise<string[]> {
+  const client = new GoogleGenAI({ apiKey });
+  // queryBase: true is required to list base foundation models
+  const pager = await client.models.list({ config: { queryBase: true } });
+  const models: string[] = [];
+  for await (const model of pager) {
+    const name = model.name?.replace('models/', '') ?? '';
+    if (name.startsWith('gemini-')) {
+      models.push(name);
+    }
+  }
+  return models.sort((a, b) => b.localeCompare(a));
+}
+
+async function fetchAvailableModels(provider: string, apiKey: string): Promise<string[]> {
+  switch (provider) {
+    case 'openai':  return await fetchOpenAIModels(apiKey);
+    case 'claude':  return await fetchAnthropicModels(apiKey);
+    case 'gemini':  return await fetchGeminiModels(apiKey);
+    default:        return [];
+  }
+}
+
+async function selectFromModelList(provider: string, models: string[]): Promise<string> {
+  const defaultModelsTyped: Record<string, string> = DEFAULT_MODELS;
+  const defaultModel = defaultModelsTyped[provider];
+
+  return await search<string>({
+    message: `Select a model for ${provider}:`,
+    source: (term: string | undefined) => {
+      const filtered = term
+        ? models.filter(m => m.toLowerCase().includes(term.toLowerCase()))
+        : models;
+      return filtered.map(m => ({
+        value: m,
+        name: m === defaultModel ? `${m} (recommended)` : m
+      }));
+    }
+  }, {
+    clearPromptOnDone: true
+  });
+}
+
 /**
  * Interactive setup wizard for coParrot
  */
@@ -168,10 +231,10 @@ export async function setup(): Promise<SetupConfig | undefined> {
 
     printStepHeader(2, 4, 'Provider');
     const provider = await selectProvider();
-    const { ollamaUrl } = await promptProviderCredentials(provider);
+    const { apiKey, ollamaUrl } = await promptProviderCredentials(provider);
 
     printStepHeader(3, 4, 'Model');
-    const model = await selectModel(provider, ollamaUrl);
+    const model = await selectModel(provider, ollamaUrl, apiKey);
 
     printStepHeader(4, 4, 'Commit convention');
     const convention = await selectConvention();
@@ -215,8 +278,8 @@ export async function setupStep(step: string): Promise<void> {
 
       [SETUP_STEPS.PROVIDER]: async () => {
         const provider = await selectProvider();
-        const { ollamaUrl } = await promptProviderCredentials(provider);
-        const model = await selectModel(provider, ollamaUrl);
+        const { apiKey, ollamaUrl } = await promptProviderCredentials(provider);
+        const model = await selectModel(provider, ollamaUrl, apiKey);
         return { provider, apiKey: null, ollamaUrl, model };
       },
 
@@ -225,7 +288,9 @@ export async function setupStep(step: string): Promise<void> {
           showError('No provider configured.', 'Run "setup provider" first.');
           return null;
         }
-        const model = await selectModel(config.provider, config.ollamaUrl);
+        const envVar = getEnvVarForProvider(config.provider);
+        const apiKey = envVar ? (process.env[envVar] ?? null) : null;
+        const model = await selectModel(config.provider, config.ollamaUrl, apiKey);
         return { model };
       },
 
@@ -317,9 +382,10 @@ async function promptProviderCredentials(provider: string): Promise<ProviderCred
 
   const detectedEnvVar = getEnvVarForProvider(provider);
   if (detectedEnvVar) {
+    const apiKey = process.env[detectedEnvVar] ?? null;
     console.log();
     console.log(chalk.green('  ✓ ') + chalk.white(`${detectedEnvVar} detected`));
-    return { apiKey: null, ollamaUrl: null };
+    return { apiKey, ollamaUrl: null };
   }
 
   await showApiKeyInstructions(provider);
@@ -337,9 +403,24 @@ async function promptOllamaUrl(): Promise<string> {
   return url.trim();
 }
 
-async function selectModel(provider: string, ollamaUrl: string | null = null): Promise<string> {
+async function selectModel(provider: string, ollamaUrl: string | null = null, apiKey: string | null = null): Promise<string> {
   if (provider === 'ollama') {
     return await selectOllamaModel(ollamaUrl || DEFAULT_OLLAMA_URL);
+  }
+
+  if (apiKey) {
+    process.stdout.write(chalk.dim('  Fetching available models...\r'));
+    try {
+      const models = await fetchAvailableModels(provider, apiKey);
+      process.stdout.write('\x1B[2K\r');
+      if (models.length > 0) {
+        return await selectFromModelList(provider, models);
+      }
+    } catch (e) {
+      const err = e as Error;
+      process.stdout.write('\x1B[2K\r');
+      console.log(chalk.dim(`  model listing failed: ${err.message}`));
+    }
   }
 
   return await promptModelName(provider);

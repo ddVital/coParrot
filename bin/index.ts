@@ -36,6 +36,7 @@ const config = loadConfig();
  */
 async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promise<void> {
   const config = loadConfig(); // re-read on each command to pick up setup changes
+  cli.config = config;         // keep welcome banner in sync
   const repo = new gitRepository();
   const status: GitChange[] = repo.getDetailedStatus();
 
@@ -89,6 +90,9 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
         console.log();
         await setupConfig();
       }
+      // Always redisplay banner with fresh config after any setup change
+      cli.config = loadConfig();
+      await cli.streamer.showWelcome(cli.options.appName, cli.options.version, cli.config);
       break;
     case 'hook':
       await hookCommand(args, cli);
