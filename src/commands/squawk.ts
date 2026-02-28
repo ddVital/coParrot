@@ -433,7 +433,17 @@ const FATAL_ERROR_PATTERNS = [
   'Authentication',
 ];
 
+export function isAbortError(error: Error): boolean {
+  return (
+    error.name === 'AbortError' ||
+    error.name === 'APIUserAbortError' ||
+    error.message === 'canceled' ||
+    error.message === 'Request was aborted.'
+  );
+}
+
 export function isFatalProviderError(error: Error): boolean {
+  if (isAbortError(error)) return true;
   const msg = error.message;
   return FATAL_ERROR_PATTERNS.some(pattern => msg.includes(pattern));
 }
@@ -451,6 +461,7 @@ class SquawkStats {
   committedMessages: string[];
   lastGitOutput: string;
   abortReason: string | null;
+  cancelled: boolean;
 
   constructor() {
     this.completed = 0;
@@ -460,6 +471,7 @@ class SquawkStats {
     this.committedMessages = [];
     this.lastGitOutput = '';
     this.abortReason = null;
+    this.cancelled = false;
   }
 
   addCommitted(message: string, gitOutput: string): void {
@@ -478,6 +490,10 @@ class SquawkStats {
 
   abort(reason: string): void {
     this.abortReason = reason;
+  }
+
+  cancel(): void {
+    this.cancelled = true;
   }
 
   getElapsed(): string {
@@ -549,9 +565,12 @@ async function processFilesSequentially(
       else if (result === 'skipped') stats.incrementSkipped();
     }
   } catch (error) {
-    // Circuit breaker: a fatal provider error was re-thrown by processItem.
-    console.log(chalk.dim('        ⚡ aborted — remaining files not processed'));
-    stats.abort((error as Error).message);
+    if (isAbortError(error as Error)) {
+      stats.cancel();
+    } else {
+      console.log(chalk.dim('        ⚡ aborted — remaining files not processed'));
+      stats.abort((error as Error).message);
+    }
   }
 
   return stats;
@@ -591,11 +610,11 @@ async function processItem(
     return 'committed';
   } catch (error) {
     const err = error as Error;
-    console.log(chalk.red(`        ✗ ${err.message}`));
-    console.log();
     if (isFatalProviderError(err)) {
       throw err; // circuit breaker: let the loop abort early
     }
+    console.log(chalk.dim(`        ✗ ${err.message}`));
+    console.log();
     return 'failed';
   }
 }
@@ -625,7 +644,8 @@ function showSquawkFooter(stats: SquawkStats): void {
   if (stats.completed > 0) parts.push(chalk.green(`${stats.completed} committed`));
   if (stats.failed > 0)    parts.push(chalk.red(`${stats.failed} failed`));
   if (stats.skipped > 0)   parts.push(chalk.yellow(`${stats.skipped} skipped`));
-  if (stats.abortReason)   parts.push(chalk.red('aborted'));
+  if (stats.cancelled)     parts.push(chalk.dim('cancelled'));
+  else if (stats.abortReason) parts.push(chalk.red('aborted'));
 
   const elapsed = chalk.dim(`(${stats.getElapsed()}s)`);
   const summary = parts.length > 0
