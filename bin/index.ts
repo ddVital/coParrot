@@ -35,6 +35,7 @@ const config = loadConfig();
  * Custom command handler
  */
 async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promise<void> {
+  const config = loadConfig(); // re-read on each command to pick up setup changes
   const repo = new gitRepository();
   const status: GitChange[] = repo.getDetailedStatus();
 
