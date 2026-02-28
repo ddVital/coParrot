@@ -44,6 +44,7 @@ class LLMOrchestrator {
   options: LLMOptions;
   client: OpenAI | Anthropic | GoogleGenAI | string | undefined;
   streamer: StreamingOutput;
+  abortSignal: AbortSignal | null = null;
 
   constructor(options: Partial<LLMOptions> = {}) {
     this.options = {
@@ -235,16 +236,10 @@ class LLMOrchestrator {
     const response = await client.chat.completions.create({
       model: this.options.model || 'gpt-4',
       messages: [
-        {
-          role: 'system',
-          content: prompts.system
-        },
-        {
-          role: 'user',
-          content: prompts.user
-        }
+        { role: 'system', content: prompts.system },
+        { role: 'user', content: prompts.user }
       ]
-    });
+    }, { signal: this.abortSignal ?? undefined });
 
     return response.choices[0].message.content;
   }
@@ -258,13 +253,8 @@ class LLMOrchestrator {
       model: this.options.model || 'claude-3-5-sonnet-20241022',
       max_tokens: 1024,
       system: prompts.system,
-      messages: [
-        {
-          role: 'user',
-          content: prompts.user
-        }
-      ]
-    });
+      messages: [{ role: 'user', content: prompts.user }]
+    }, { signal: this.abortSignal ?? undefined });
 
     const textBlock = response.content[0] as { type: 'text'; text: string };
     return textBlock.text;
@@ -296,7 +286,7 @@ class LLMOrchestrator {
         system: prompts.system,
         prompt: prompts.user,
         stream: false
-      });
+      }, { signal: this.abortSignal ?? undefined });
 
       return response.data.response;
     } catch (error) {
