@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import ora, { Ora } from 'ora';
+import { execSync } from 'child_process';
 import { displayWelcomeBanner } from '../utils/welcome-banner.js';
 import i18n from '../services/i18n.js';
 import TransientProgress from '../utils/transient-progress.js';
@@ -209,16 +210,29 @@ class StreamingOutput {
     console.log();
 
     // Display welcome banner
-    await displayWelcomeBanner(appName);
+    displayWelcomeBanner(appName);
 
-    console.log();
+    // Get current branch
+    let currentBranch: string | null = null;
+    try {
+      currentBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim() || null;
+    } catch {
+      // not in a git repo
+    }
 
-    // Descriptive tagline
-    const providerName = config.provider ? config.provider.toUpperCase() : 'not configured';
+    // Build provider + model display
+    const providerLabel = config.provider ? config.provider.toUpperCase() : 'NOT CONFIGURED';
     const providerColor = config.provider ? chalk.rgb(34, 197, 94) : chalk.rgb(239, 68, 68);
+    const modelLabel = config.model ? chalk.dim(` (${config.model})`) : '';
+    const branchLabel = currentBranch ? chalk.cyan(currentBranch) : chalk.dim('–');
 
-    console.log(chalk.dim(` ${appName} can write, analyze and enhance your git workflow right from your terminal.`));
-    console.log(chalk.dim(` LLM Provider: `) + providerColor(providerName) + chalk.dim(`. ${appName} uses AI, check for mistakes.`));
+    console.log(chalk.dim(`Write, analyze, and enhance your git workflow right from your terminal.`));
+    console.log(
+      chalk.dim(`v`) + chalk.white(version) +
+      chalk.dim(` · branch `) + branchLabel +
+      chalk.dim(` · `) + providerColor(providerLabel) + modelLabel +
+      chalk.dim(`. AI may make mistakes.`)
+    );
     console.log();
 
     // Show helpful info for first-time users
@@ -227,7 +241,7 @@ class StreamingOutput {
       console.log();
     } else {
       // Quick command hints
-      console.log(chalk.dim(' Type ') + chalk.cyan('help') + chalk.dim(' for commands, ') + chalk.cyan('status') + chalk.dim(' to view changes, or ') + chalk.cyan('?') + chalk.dim(' for quick help.'));
+      console.log(chalk.dim('Type ') + chalk.cyan('help') + chalk.dim(' for commands, ') + chalk.cyan('status') + chalk.dim(' to view changes, or ') + chalk.cyan('?') + chalk.dim(' for quick help.'));
       console.log();
     }
   }
