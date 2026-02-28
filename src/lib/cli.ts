@@ -32,6 +32,7 @@ class CLI {
   lastCtrlC: number;
   private _gitRepository: any;
   private _currentBranch: string | null;
+  private _commandController: AbortController | null;
 
   constructor(options: CLIOptions = {}) {
     this.options = {
@@ -54,6 +55,7 @@ class CLI {
     this.lastCtrlC = 0;
     this._gitRepository = null;
     this._currentBranch = null;
+    this._commandController = null;
   }
 
   /**
@@ -65,29 +67,9 @@ class CLI {
 
     this.isRunning = true;
 
-    // Handle graceful shutdown with double Ctrl+C
-    process.on('SIGINT', () => this.handleCtrlC());
     process.on('SIGTERM', () => this.shutdown());
 
     await this.mainLoop();
-  }
-
-  /**
-   * Handle Ctrl+C - require double press to exit
-   */
-  handleCtrlC(): void {
-    const now = Date.now();
-    const timeSinceLastCtrlC = now - this.lastCtrlC;
-
-    // If less than 2 seconds since last Ctrl+C, exit
-    if (timeSinceLastCtrlC < 2000) {
-      this.shutdown();
-    } else {
-      // First Ctrl+C - show message and update timestamp
-      console.log();
-      this.streamer.showWarning(i18n.t('cli.messages.pressAgainToExit') || 'Press Ctrl+C again to exit, or type "exit"');
-      this.lastCtrlC = now;
-    }
   }
 
   /**
@@ -114,12 +96,14 @@ class CLI {
         await this.handleCommand(userInput);
 
       } catch (error) {
-        const err = error as { isTtyError?: boolean; message?: string };
-        if (err.isTtyError) {
+        const err = error as { name?: string; isTtyError?: boolean; message?: string };
+        if (err.name === 'ExitPromptError' || err.name === 'AbortError') {
+          // silently cancelled — return to prompt
+        } else if (err.isTtyError) {
           this.streamer.showError(i18n.t('cli.messages.renderError'));
           break;
         } else {
-          this.streamer.showError(err.message || error);
+          this.streamer.showError(err.message || String(error));
         }
       }
     }
@@ -145,18 +129,12 @@ class CLI {
       // Override readline's default SIGINT behavior to implement double Ctrl+C
       rl.on('SIGINT', () => {
         const now = Date.now();
-        const timeSinceLastCtrlC = now - this.lastCtrlC;
-
-        // If less than 2 seconds since last Ctrl+C, exit
-        if (timeSinceLastCtrlC < 2000) {
+        if (now - this.lastCtrlC < 2000) {
           rl.close();
           this.shutdown();
         } else {
-          // First Ctrl+C - show message and update timestamp
-          console.log();
-          this.streamer.showWarning(i18n.t('cli.messages.pressAgainToExit') || 'Press Ctrl+C again to exit, or type "exit"');
+          console.log(chalk.dim('\n  press ctrl+c again to exit'));
           this.lastCtrlC = now;
-          // Close this readline instance and start fresh
           rl.close();
           resolve('');
         }
@@ -287,6 +265,13 @@ class CLI {
   }
 
   /**
+   * Returns the AbortSignal for the currently running command, if any
+   */
+  get commandSignal(): AbortSignal | null {
+    return this._commandController?.signal ?? null;
+  }
+
+  /**
    * Handle commands (no / prefix needed)
    */
   async handleCommand(command: string): Promise<void> {
@@ -319,9 +304,25 @@ class CLI {
         break;
 
       default:
-        // Call custom command handler if provided
         if (this.options.onCommand) {
-          await this.options.onCommand(cmd, args, this);
+          this._commandController = new AbortController();
+          const abortHandler = () => {
+            this._commandController?.abort();
+            console.log();
+          };
+          process.on('SIGINT', abortHandler);
+          try {
+            await this.options.onCommand(cmd, args, this);
+          } catch (error) {
+            const err = error as { name?: string; message?: string };
+            const wasCancelled = this._commandController?.signal.aborted ?? false;
+            if (err.name !== 'ExitPromptError' && !wasCancelled) {
+              this.streamer.showError(err.message || String(error));
+            }
+          } finally {
+            process.off('SIGINT', abortHandler);
+            this._commandController = null;
+          }
         } else {
           this.streamer.showError(i18n.t('cli.messages.unknownCommand', { cmd }));
           this.streamer.showInfo(i18n.t('cli.messages.helpHint'));
@@ -400,8 +401,7 @@ class CLI {
    */
   async shutdown(): Promise<void> {
     this.streamer.stopThinking();
-    console.log();
-    this.streamer.showInfo(i18n.t('app.goodbye'));
+    console.log(chalk.dim('\n  bye'));
     console.log();
     this.isRunning = false;
     process.exit(0);
