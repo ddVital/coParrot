@@ -53,6 +53,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
     },
     skipApproval: args.includes('-y') || args.includes('--yes')
   });
+  provider.abortSignal = cli.commandSignal;
 
   switch (cmd) {
     case 'test':
