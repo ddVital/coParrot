@@ -72,9 +72,9 @@ const PR_TEMPLATE_PATHS = [
 ];
 
 const DEFAULT_MODELS = {
-  openai: 'gpt-4',
-  claude: 'claude-3-5-sonnet-20241022',
-  gemini: 'gemini-2.0-flash-exp'
+  openai: 'gpt-4o',
+  claude: 'claude-sonnet-4-5',
+  gemini: 'gemini-2.0-flash'
 };
 
 const SETUP_STEPS = {
@@ -421,6 +421,8 @@ async function selectModel(provider: string, ollamaUrl: string | null = null, ap
       process.stdout.write('\x1B[2K\r');
       console.log(chalk.dim(`  model listing failed: ${err.message}`));
     }
+  } else {
+    console.log(chalk.dim('  No API key found — enter model name manually.'));
   }
 
   return await promptModelName(provider);
