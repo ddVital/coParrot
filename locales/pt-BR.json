@@ -148,7 +148,9 @@
       "claude": "Claude",
       "claudeDesc": "Claude da Anthropic - Ótimo para raciocínio",
       "gemini": "Gemini",
-      "geminiDesc": "Gemini do Google - Rápido e eficiente"
+      "geminiDesc": "Gemini do Google - Rápido e eficiente",
+      "ollama": "Ollama",
+      "ollamaDesc": "Execute modelos localmente — sem chave de API necessária"
     },
     "enterApiKey": "Digite sua chave de API {provider}:",
     "apiKeyHelp": "Obtenha sua chave de API em: {url}",
@@ -239,6 +241,9 @@
     "configSaved": "Configuração salva em: {path}",
     "envVarDetected": "Chave de API detectada na variável de ambiente {envVar}.",
     "envVarHint": "A variável de ambiente será usada automaticamente. Não é necessário inserir uma chave.",
+    "apiKeyInstructions": "Para usar {provider}, defina sua chave de API como variável de ambiente:",
+    "apiKeyPersist": "Adicione ao ~/.bashrc ou ~/.zshrc para persistir entre sessões.",
+    "apiKeyReady": "Pressione Enter quando estiver pronto para continuar",
     "readyToGo": "Tudo pronto! Iniciando coParrot..."
   },
   "config": {

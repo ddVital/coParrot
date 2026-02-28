@@ -1,4 +1,4 @@
-import { select, password, confirm, input, editor } from '@inquirer/prompts';
+import { select, confirm, input, editor } from '@inquirer/prompts';
 import chalk from 'chalk';
 import i18n from '../services/i18n.js';
 import { loadConfig, saveConfig, getEnvVarForProvider } from '../services/config.js';
@@ -21,7 +21,6 @@ interface PRTemplate {
 interface SetupConfigParams {
   language: string;
   provider: string;
-  apiKey: string | null;
   ollamaUrl: string | null;
   model: string;
   convention: CommitConvention;
@@ -56,10 +55,8 @@ interface PromptError extends Error {
 }
 
 // Constants
-const BANNER_WIDTH = 60;
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b-instruct';
-const MIN_API_KEY_LENGTH = 10;
 const MAX_INSTRUCTIONS_LENGTH = 1000;
 const BYTES_TO_GB = 1e9;
 
@@ -85,20 +82,22 @@ const SETUP_STEPS = {
   INSTRUCTIONS: 'instructions'
 };
 
-// Utility functions
-const showBanner = (title: string, subtitle: string | null = null): void => {
-  console.log();
-  console.log(chalk.cyan.bold('═'.repeat(BANNER_WIDTH)));
-  console.log(chalk.cyan.bold(title));
-  if (subtitle) console.log(chalk.dim(`  ${subtitle}`));
-  console.log(chalk.cyan.bold('═'.repeat(BANNER_WIDTH)));
-  console.log();
+const ENV_VAR_NAMES: Record<string, string> = {
+  openai: 'OPENAI_API_KEY',
+  claude: 'ANTHROPIC_API_KEY',
+  gemini: 'GEMINI_API_KEY'
 };
 
-const showSuccess = (message: string): void => {
+const API_KEY_URLS: Record<string, string> = {
+  openai: 'https://platform.openai.com/api-keys',
+  claude: 'https://console.anthropic.com/settings/keys',
+  gemini: 'https://makersuite.google.com/app/apikey'
+};
+
+// Utility functions
+const printStepHeader = (n: number, total: number, label: string): void => {
   console.log();
-  console.log(chalk.green('✓ ') + chalk.white(message));
-  console.log();
+  console.log(chalk.dim(`  [${n}/${total}]`) + '  ' + chalk.white(label));
 };
 
 const showError = (message: string, hint: string | null = null): void => {
@@ -117,14 +116,6 @@ const handleSetupError = (error: unknown): void => {
 };
 
 // Validation functions
-const validateApiKey = (value: string | undefined): string | true => {
-  if (!value?.trim()) return 'API key cannot be empty';
-  if (value.trim().length < MIN_API_KEY_LENGTH) {
-    return 'API key seems too short. Please check and try again.';
-  }
-  return true;
-};
-
 const validateCustomFormat = (value: string | undefined): string | true => {
   if (!value?.trim()) {
     return i18n.t('setup.customCommitRequired') || 'Custom format cannot be empty';
@@ -140,32 +131,62 @@ const validateInstructions = (value: string | undefined): string | true => {
   return true;
 };
 
+async function showApiKeyInstructions(provider: string): Promise<void> {
+  const envVar = ENV_VAR_NAMES[provider] || `${provider.toUpperCase()}_API_KEY`;
+  const url = API_KEY_URLS[provider];
+
+  console.log();
+  console.log(chalk.dim('  ' + i18n.t('setup.apiKeyInstructions', { provider })));
+  console.log();
+  console.log(chalk.cyan(`    export ${envVar}=...`));
+  console.log();
+  if (url) {
+    console.log(chalk.dim(`  Get your key at: ${url}`));
+  }
+  console.log(chalk.dim('  ' + i18n.t('setup.apiKeyPersist')));
+  console.log();
+
+  await confirm({
+    message: i18n.t('setup.apiKeyReady'),
+    default: true
+  }, {
+    clearPromptOnDone: true
+  });
+}
+
 /**
  * Interactive setup wizard for coParrot
  */
 export async function setup(): Promise<SetupConfig | undefined> {
-  showBanner('Welcome to coParrot!', 'Let\'s get you set up. This will only take a minute.');
+  console.log();
+  console.log(chalk.dim('  setup') + '  ' + chalk.white('4 steps'));
 
   try {
+    printStepHeader(1, 4, 'Language');
     const language = await selectLanguage();
     i18n.setLanguage(language);
 
-    console.clear();
-    showBanner(i18n.t('setup.welcome'), i18n.t('setup.intro'));
-
+    printStepHeader(2, 4, 'Provider');
     const provider = await selectProvider();
-    const { apiKey, ollamaUrl } = await promptProviderCredentials(provider);
+    const { ollamaUrl } = await promptProviderCredentials(provider);
+
+    printStepHeader(3, 4, 'Model');
     const model = await selectModel(provider, ollamaUrl);
+
+    printStepHeader(4, 4, 'Commit convention');
     const convention = await selectConvention();
+
     const prTemplate = await detectPRTemplate();
+
+    console.log();
+    console.log(chalk.dim('  [opt]') + '  ' + chalk.white('Custom instructions'));
     const customInstructions = await promptCustomInstructions();
 
-    showSuccess(i18n.t('setup.setupComplete'));
+    console.clear();
 
     return buildSetupConfig({
       language,
       provider,
-      apiKey,
       ollamaUrl,
       model,
       convention,
@@ -194,9 +215,9 @@ export async function setupStep(step: string): Promise<void> {
 
       [SETUP_STEPS.PROVIDER]: async () => {
         const provider = await selectProvider();
-        const { apiKey, ollamaUrl } = await promptProviderCredentials(provider);
+        const { ollamaUrl } = await promptProviderCredentials(provider);
         const model = await selectModel(provider, ollamaUrl);
-        return { provider, apiKey, ollamaUrl, model };
+        return { provider, apiKey: null, ollamaUrl, model };
       },
 
       [SETUP_STEPS.MODEL]: async () => {
@@ -235,7 +256,7 @@ export async function setupStep(step: string): Promise<void> {
     if (updates) {
       Object.assign(config, updates);
       saveConfig(config);
-      showSuccess('Configuration updated successfully!');
+      console.log(chalk.dim('  saved'));
     }
   } catch (error) {
     const err = error as PromptError;
@@ -276,8 +297,6 @@ async function selectLanguage(): Promise<string> {
 }
 
 async function selectProvider(): Promise<string> {
-  console.log();
-
   return await select({
     message: i18n.t('setup.selectProvider'),
     choices: ['openai', 'claude', 'gemini', 'ollama'].map(provider => ({
@@ -299,38 +318,12 @@ async function promptProviderCredentials(provider: string): Promise<ProviderCred
   const detectedEnvVar = getEnvVarForProvider(provider);
   if (detectedEnvVar) {
     console.log();
-    console.log(chalk.green('✓ ') + i18n.t('setup.envVarDetected', { envVar: chalk.bold(detectedEnvVar) }));
-    console.log(chalk.dim('  ' + i18n.t('setup.envVarHint')));
+    console.log(chalk.green('  ✓ ') + chalk.white(`${detectedEnvVar} detected`));
     return { apiKey: null, ollamaUrl: null };
   }
 
-  const apiKey = await promptApiKey(provider);
-  return { apiKey, ollamaUrl: null };
-}
-
-async function promptApiKey(provider: string): Promise<string> {
-  console.log();
-
-  const apiKeyUrls: Record<string, string> = {
-    openai: i18n.t('setup.apiKeyHelpUrls.openai'),
-    claude: i18n.t('setup.apiKeyHelpUrls.claude'),
-    gemini: i18n.t('setup.apiKeyHelpUrls.gemini')
-  };
-
-  console.log(chalk.dim('  ' + i18n.t('setup.apiKeyHelp', {
-    url: chalk.cyan(apiKeyUrls[provider])
-  })));
-  console.log();
-
-  const apiKey = await password({
-    message: i18n.t('setup.enterApiKey', { provider: chalk.bold(provider) }),
-    mask: '•',
-    validate: validateApiKey
-  }, {
-    clearPromptOnDone: true
-  });
-
-  return apiKey.trim();
+  await showApiKeyInstructions(provider);
+  return { apiKey: null, ollamaUrl: null };
 }
 
 async function promptOllamaUrl(): Promise<string> {
@@ -345,8 +338,6 @@ async function promptOllamaUrl(): Promise<string> {
 }
 
 async function selectModel(provider: string, ollamaUrl: string | null = null): Promise<string> {
-  console.log();
-
   if (provider === 'ollama') {
     return await selectOllamaModel(ollamaUrl || DEFAULT_OLLAMA_URL);
   }
@@ -397,8 +388,6 @@ async function promptModelName(provider: string, defaultModel: string | null = n
 }
 
 async function selectConvention(): Promise<CommitConvention> {
-  console.log();
-
   const conventions = ['conventional', 'gitmoji', 'simple', 'custom'];
   const convention = await select({
     message: i18n.t('setup.selectCommitConvention'),
@@ -459,7 +448,6 @@ async function promptCustomConvention(): Promise<CommitConvention> {
 export async function detectPRTemplate(): Promise<PRTemplate> {
   for (const templatePath of PR_TEMPLATE_PATHS) {
     if (fs.existsSync(templatePath)) {
-      console.log(chalk.green('  ✓ Found PR template: ') + chalk.dim(templatePath));
       return { path: templatePath, style: 'template' };
     }
   }
@@ -468,8 +456,6 @@ export async function detectPRTemplate(): Promise<PRTemplate> {
 }
 
 async function promptCustomInstructions(): Promise<string> {
-  console.log();
-
   const wantsCustom = await confirm({
     message: i18n.t('setup.wantsCustomInstructions'),
     default: false
@@ -499,7 +485,6 @@ async function promptCustomInstructions(): Promise<string> {
 function buildSetupConfig({
   language,
   provider,
-  apiKey,
   ollamaUrl,
   model,
   convention,
@@ -509,7 +494,7 @@ function buildSetupConfig({
   return {
     language,
     provider,
-    apiKey,
+    apiKey: null,
     ollamaUrl,
     model,
     commitConvention: convention,

@@ -29,8 +29,6 @@ const CONFIG_DIR = getConfigDir();
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 const CONFIG_ENCODING: BufferEncoding = 'utf-8';
 const JSON_INDENT = 2;
-const SETUP_DELAY_MS = 1500;
-
 const DEFAULT_LANGUAGE = 'en';
 const DEFAULT_PR_STYLE = 'detailed';
 const DEFAULT_CONVENTION_TYPE = 'conventional';
@@ -104,16 +102,6 @@ const showConfigError = (action: string, error: Error): void => {
   const errorKey = `config.errors.${action}Error`;
   const message = i18n.t(errorKey, { error: error.message });
   console.error(chalk.red('⚠ ') + message);
-};
-
-const showSetupSuccess = (configPath: string): void => {
-  console.log();
-  console.log(chalk.green('✓ ') + i18n.t('setup.configSaved', {
-    path: chalk.dim(configPath)
-  }));
-  console.log();
-  console.log(chalk.cyan('  ' + i18n.t('setup.readyToGo')));
-  console.log();
 };
 
 /**
@@ -202,8 +190,6 @@ export async function setupConfig(): Promise<boolean> {
     const saved = saveConfig(newConfig);
 
     if (saved) {
-      showSetupSuccess(CONFIG_PATH);
-      await new Promise(resolve => setTimeout(resolve, SETUP_DELAY_MS));
       return true;
     }
 
