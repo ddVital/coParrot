@@ -48,13 +48,15 @@ describe('gitAdd', () => {
 
   it('calls repo.add with selected files', async () => {
     const changes = sampleChanges
+    // sampleChanges[1] (stagedFile) is already staged (checked: true), so it won't be re-added.
+    // Only newly selected files that weren't previously staged get passed to repo.add.
     const selectedFiles = [sampleChanges[0].value, sampleChanges[1].value]
     checkboxMock.mockResolvedValue(selectedFiles)
 
     const repo = createMockRepo()
     await gitAdd(repo, changes)
 
-    expect(repo.add).toHaveBeenCalledWith(selectedFiles)
+    expect(repo.add).toHaveBeenCalledWith([sampleChanges[0].value])
   })
 
   it('shows checkbox with all current change file paths', async () => {
@@ -70,14 +72,15 @@ describe('gitAdd', () => {
     expect(choiceValues).toContain(changes[1].value)
   })
 
-  it('calls repo.restoreAll before adding', async () => {
+  it('calls repo.restore for deselected previously-staged files', async () => {
     const changes = sampleChanges
+    // sampleChanges[1] (stagedFile) is already staged (checked: true).
+    // Selecting only changes[0] means stagedFile gets deselected → restore called for it.
     checkboxMock.mockResolvedValue([changes[0].value])
     const repo = createMockRepo()
 
     await gitAdd(repo, changes)
 
-    expect(repo.restoreAll).toHaveBeenCalledBefore
-    expect(repo.restoreAll).toHaveBeenCalled()
+    expect(repo.restore).toHaveBeenCalledWith([changes[1].value])
   })
 })
