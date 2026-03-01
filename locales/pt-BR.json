@@ -114,9 +114,11 @@
     },
     "checkout": {
       "selectBranch": "Selecione uma branch para mudar:",
+      "selectBranchToDelete": "Selecione uma branch para excluir:",
       "noBranches": "nenhuma branch disponível",
       "switched": "Mudou para a branch '{branch}'",
-      "created": "Mudou para a nova branch '{branch}'"
+      "created": "Mudou para a nova branch '{branch}'",
+      "conflictingFlags": "não é possível usar -b e -d/-D juntos"
     },
     "errors": {
       "notARepository": "Não é um repositório git: {path}",
