@@ -53,6 +53,39 @@
     }
   },
   "git": {
+    "hook": {
+      "unknownSubcommand": "Subcomando de hook desconocido: {subcommand}",
+      "usage": "Uso: hook install | hook uninstall",
+      "install": {
+        "success": "¡Hook de git instalado correctamente! ✓",
+        "failed": "Error al instalar hook: {error}",
+        "configured": "Lo siguiente ha sido configurado:",
+        "hookInstalled": "hook prepare-commit-msg (genera mensajes de commit automáticamente)",
+        "templateDir": "directorio de plantillas global de git",
+        "aliasesCreated": "Alias de git creados:",
+        "squawkAlias": "Commitear archivos individualmente con timestamps",
+        "statusAlias": "Mostrar estado del repositorio",
+        "addAlias": "Preparar archivos interactivamente",
+        "commitAlias": "Commitear con mensaje generado por IA",
+        "setupAlias": "Configurar CoParrot",
+        "applyToExisting": "Para aplicar el hook a repositorios existentes, ejecuta:",
+        "gitInitHint": "git init",
+        "gitInitHintDesc": "(en cada repositorio existente)",
+        "useDirectly": "Para usar directamente sin git:",
+        "directExample": "coparrot status",
+        "directExampleOr": "o",
+        "directExampleAlt": "cpt status"
+      },
+      "uninstall": {
+        "success": "¡Hook de git desinstalado correctamente! ✓",
+        "failed": "Error al desinstalar hook: {error}",
+        "removed": "Lo siguiente ha sido eliminado:",
+        "hookRemoved": "hook prepare-commit-msg",
+        "aliasesRemoved": "alias de git (squawk, cstatus, cadd, ccommit, csetup)",
+        "templateDirNote": "Nota: El directorio .git-templates ha sido conservado intacto",
+        "configNote": "Nota: La configuración git init.templateDir permanece (puedes eliminarla manualmente)"
+      }
+    },
     "add": {
       "selectFiles": "Elige archivos para preparar para commit (Espacio para seleccionar, Enter para confirmar)",
       "noFilesSelected": "ningún archivo preparado",
@@ -66,7 +99,8 @@
     },
     "commit": {
       "noFilesStaged": "nada que commitear — no hay archivos preparados",
-      "useAddFirst": "Use /add para preparar archivos primero, o pruebe /squawk para hacer commit de archivos individualmente."
+      "useAddFirst": "Use /add para preparar archivos primero, o pruebe /squawk para hacer commit de archivos individualmente.",
+      "successCommited": ""
     },
     "squawk": {
       "title": "Haciendo commit de archivos individualmente...",
