@@ -300,6 +300,7 @@ class GitRepository {
       return this.exec('git branch --show-current');
     } catch (error) {
       return 'main';
+    }
   }
 
   /**
