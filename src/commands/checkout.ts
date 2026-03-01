@@ -1,5 +1,5 @@
 import i18n from '../services/i18n.js';
-import { select } from '@inquirer/prompts';
+import { select, checkbox } from '@inquirer/prompts';
 import { parseFlag } from '../utils/args-parser.js';
 import type GitRepository from '../services/git.js';
 import type LLMOrchestrator from '../services/llms.js';
@@ -7,11 +7,14 @@ import type LLMOrchestrator from '../services/llms.js';
 interface ParsedCheckoutArgs {
   branchName: string | null;
   shouldCreate: boolean;
+  shouldDelete: boolean;
+  forceDelete: boolean;
 }
 
 interface ValidateCheckoutArgsInput {
   branchName: string | null;
   hasCreateFlag: boolean;
+  hasDeleteFlag: boolean;
 }
 
 /**
@@ -31,10 +34,13 @@ export async function gitCheckout(
   const parsedArgs = parseCheckoutArgs(args);
   if (!parsedArgs) return; // Validation failed, error already logged
 
-  const { branchName, shouldCreate } = parsedArgs;
+  const { branchName, shouldCreate, shouldDelete, forceDelete } = parsedArgs;
 
   try {
-    if (!shouldCreate && !branchName) {
+    if (shouldDelete) {
+      // Delete mode — interactive if no branch name given
+      await deleteCheckout(repo, branchName, forceDelete);
+    } else if (!shouldCreate && !branchName) {
       // Interactive mode: select from existing branches
       await interactiveCheckout(repo);
     } else if (shouldCreate) {
@@ -81,29 +87,62 @@ async function createCheckout(
   console.log(output || i18n.t('git.checkout.created', { branch: finalBranchName }));
 }
 
+async function deleteCheckout(
+  repo: GitRepository,
+  branchName: string | null,
+  force: boolean
+): Promise<void> {
+  const currentBranch = repo.getCurrentBranch().trim();
+
+  if (branchName) {
+    const output = repo.deleteBranch(branchName, force);
+    console.log(output);
+  } else {
+    // Interactive: list all branches except the current one
+    const branches = repo.getBranches().filter(b => b !== currentBranch);
+    if (branches.length === 0) {
+      console.error(i18n.t('output.prefixes.error'), i18n.t('git.checkout.noBranches'));
+      return;
+    }
+    const selected = await checkbox({
+      message: i18n.t('git.checkout.selectBranchToDelete'),
+      choices: branches.map(b => ({ value: b, name: b }))
+    });
+    if (selected.length === 0) return;
+    for (const branch of selected) {
+      const output = repo.deleteBranch(branch, force);
+      console.log(output);
+    }
+  }
+}
+
 /**
  * Parses and validates checkout command arguments
  * Returns null if validation fails
  */
 function parseCheckoutArgs(args: string[]): ParsedCheckoutArgs | null {
   const hasCreateFlag = args.includes('-b');
+  const forceDelete = args.includes('-D');
+  const hasDeleteFlag = forceDelete || args.includes('-d');
 
-  // For create mode: name is the value after -b
-  // For switch mode: name is the first positional (non-flag) argument
-  const branchName = hasCreateFlag
-    ? parseFlag(args, '-b')[0] || null
+  // Determine the active flag to find the associated branch name
+  const activeFlag = hasCreateFlag ? '-b' : forceDelete ? '-D' : hasDeleteFlag ? '-d' : null;
+  const branchName = activeFlag
+    ? parseFlag(args, activeFlag)[0] || null
     : args.find(a => !a.startsWith('-')) || null;
 
   // Validate argument combinations
-  const validationError = validateCheckoutArgs({ branchName, hasCreateFlag });
-  if (validationError) {
+  const validationError = validateCheckoutArgs({ branchName, hasCreateFlag, hasDeleteFlag });
+  if (validationError !== null) {
     console.error(i18n.t('output.prefixes.error'), validationError);
     return null;
   }
 
   return {
     branchName,
-    shouldCreate: hasCreateFlag
+    shouldCreate: hasCreateFlag,
+    shouldDelete: hasDeleteFlag,
+    forceDelete,
   };
 }
 
@@ -112,12 +151,13 @@ function parseCheckoutArgs(args: string[]): ParsedCheckoutArgs | null {
  * Returns null if valid
  */
 function validateCheckoutArgs({
-  branchName,
-  hasCreateFlag
+  hasCreateFlag,
+  hasDeleteFlag
 }: ValidateCheckoutArgsInput): string | null {
-  // No args → interactive branch selection (valid)
-  // -b alone → AI generates branch name from session context (valid)
-  // -b <name> → create and checkout named branch (valid)
-  // <branch> → switch to existing branch (valid)
+  // Cannot create and delete at the same time
+  if (hasCreateFlag && hasDeleteFlag) {
+    return i18n.t('git.checkout.conflictingFlags');
+  }
+
   return null;
 }
