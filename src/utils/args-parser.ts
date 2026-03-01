@@ -2,9 +2,6 @@
  * Utility functions for parsing command-line arguments
  */
 
-type FlagConfig = Record<string, string[]>;
-type ParsedFlags = Record<string, string[]>;
-
 /**
  * Removes surrounding quotes from a string
  */
@@ -63,61 +60,3 @@ export function hasFlag(args: string[], flags: string | string[]): boolean {
   return flagArray.some(flag => args.includes(flag));
 }
 
-/**
- * Parses multiple flags from args
- */
-export function parseFlags(args: string[], flagConfig: FlagConfig): ParsedFlags {
-  const result: ParsedFlags = {};
-
-  for (const [flagName, aliases] of Object.entries(flagConfig)) {
-    // Find which alias (if any) is present
-    const presentAlias = aliases.find(alias => args.includes(alias));
-
-    if (presentAlias) {
-      result[flagName] = parseFlag(args, presentAlias);
-    } else {
-      result[flagName] = [];
-    }
-  }
-
-  return result;
-}
-
-/**
- * Removes flags and their values from args array
- */
-export function removeFlags(args: string[], flags: string[]): string[] {
-  if (!args || !Array.isArray(args)) {
-    return [];
-  }
-
-  const result: string[] = [];
-  let skipNext = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (skipNext) {
-      // Skip values that were part of a flag
-      if (!args[i].startsWith('--') && !args[i].startsWith('-')) {
-        continue;
-      }
-      skipNext = false;
-    }
-
-    if (flags.includes(args[i])) {
-      // This is a flag we want to remove
-      skipNext = true;
-      continue;
-    }
-
-    result.push(args[i]);
-  }
-
-  return result;
-}
-
-export default {
-  parseFlag,
-  hasFlag,
-  parseFlags,
-  removeFlags
-};
