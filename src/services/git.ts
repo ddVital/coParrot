@@ -217,10 +217,6 @@ class GitRepository {
     return this.exec(`git restore --staged ${fileList.map(f => shellEscape(f)).join(' ')}`);
   }
 
-  restoreAll(): string {
-    return this.exec('git restore --staged .')
-  }
-
   /**
    * Create commit
    */
@@ -303,8 +299,7 @@ class GitRepository {
     try {
       return this.exec('git branch --show-current');
     } catch (error) {
-      return 'main'; // Default for new repos TODO: see if this is the right approach
-    }
+      return 'main';
   }
 
   /**
@@ -331,7 +326,7 @@ class GitRepository {
     try {
       return this.exec('git symbolic-ref refs/remotes/origin/HEAD').trim();
     } catch {
-      return 'main'; // TODO: maybe change to detect default branch
+      return 'main';
     }
   }
 
@@ -488,33 +483,6 @@ class GitRepository {
     } catch (error) {
       // No upstream branch set
       return false;
-    }
-  }
-
-  /**
-   * Stash changes
-   */
-  stash(message: string = ''): string {
-    const cmd = message ? `git stash save "${message}"` : 'git stash';
-    return this.exec(cmd);
-  }
-
-  /**
-   * Apply stash
-   */
-  stashPop(index: number = 0): string {
-    return this.exec(`git stash pop stash@{${index}}`);
-  }
-
-  /**
-   * List stashes
-   */
-  stashList(): string[] {
-    try {
-      const output = this.exec('git stash list');
-      return output ? output.split('\n').filter(Boolean) : [];
-    } catch (error) {
-      return [];
     }
   }
 
