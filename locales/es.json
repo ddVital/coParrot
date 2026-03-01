@@ -113,9 +113,11 @@
     },
     "checkout": {
       "selectBranch": "Selecciona una rama para cambiar:",
+      "selectBranchToDelete": "Selecciona una rama para eliminar:",
       "noBranches": "no hay ramas disponibles",
       "switched": "Cambiado a la rama '{branch}'",
-      "created": "Cambiado a la nueva rama '{branch}'"
+      "created": "Cambiado a la nueva rama '{branch}'",
+      "conflictingFlags": "no se puede usar -b y -d/-D juntos"
     },
     "errors": {
       "notARepository": "No es un repositorio git: {path}",
