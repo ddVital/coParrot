@@ -12,7 +12,6 @@ interface ParsedCheckoutArgs {
 }
 
 interface ValidateCheckoutArgsInput {
-  branchName: string | null;
   hasCreateFlag: boolean;
   hasDeleteFlag: boolean;
 }
@@ -132,7 +131,7 @@ function parseCheckoutArgs(args: string[]): ParsedCheckoutArgs | null {
     : args.find(a => !a.startsWith('-')) || null;
 
   // Validate argument combinations
-  const validationError = validateCheckoutArgs({ branchName, hasCreateFlag, hasDeleteFlag });
+  const validationError = validateCheckoutArgs({ hasCreateFlag, hasDeleteFlag });
   if (validationError !== null) {
     console.error(i18n.t('output.prefixes.error'), validationError);
     return null;
