@@ -353,6 +353,14 @@ class GitRepository {
   }
 
   /**
+   * Delete a branch
+   */
+  deleteBranch(branchName: string, force: boolean = false): string {
+    const flag = force ? '-D' : '-d';
+    return this.exec(`git branch ${flag} ${branchName}`);
+  }
+
+  /**
    * Get remote URL
    */
   getRemoteUrl(remote: string = 'origin'): string {
