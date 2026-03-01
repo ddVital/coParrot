@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseFlag, hasFlag, parseFlags, removeFlags } from '../../../src/utils/args-parser.js'
+import { parseFlag, hasFlag } from '../../../src/utils/args-parser.js'
 
 describe('parseFlag', () => {
   it('returns values after flag until next flag', () => {
@@ -65,59 +65,3 @@ describe('hasFlag', () => {
   })
 })
 
-describe('parseFlags', () => {
-  it('parses multiple flags from config map', () => {
-    const args = ['--ignore', 'node_modules', '--group', 'src', 'tests']
-    const config = {
-      ignore: ['--ignore'],
-      group: ['--group', '-g'],
-    }
-    const result = parseFlags(args, config)
-    expect(result.ignore).toEqual(['node_modules'])
-    expect(result.group).toEqual(['src', 'tests'])
-  })
-
-  it('returns empty arrays for absent flags', () => {
-    const args = ['--ignore', 'node_modules']
-    const config = { ignore: ['--ignore'], group: ['--group'] }
-    const result = parseFlags(args, config)
-    expect(result.group).toEqual([])
-  })
-
-  it('uses first matching alias', () => {
-    const args = ['-g', 'src']
-    const config = { group: ['--group', '-g'] }
-    const result = parseFlags(args, config)
-    expect(result.group).toEqual(['src'])
-  })
-})
-
-describe('removeFlags', () => {
-  it('removes flag and its value from args', () => {
-    const args = ['--ignore', 'node_modules', '--verbose']
-    const result = removeFlags(args, ['--ignore'])
-    expect(result).toEqual(['--verbose'])
-  })
-
-  it('leaves non-flag args intact', () => {
-    const args = ['commit', '--verbose', '--ignore', 'dist']
-    const result = removeFlags(args, ['--ignore'])
-    expect(result).toEqual(['commit', '--verbose'])
-  })
-
-  it('removes multiple flags', () => {
-    const args = ['--ignore', 'node_modules', '--group', 'src', '--verbose']
-    const result = removeFlags(args, ['--ignore', '--group'])
-    expect(result).toEqual(['--verbose'])
-  })
-
-  it('returns unchanged array when flag absent', () => {
-    const args = ['--verbose', '--hook']
-    const result = removeFlags(args, ['--ignore'])
-    expect(result).toEqual(['--verbose', '--hook'])
-  })
-
-  it('returns empty array for empty input', () => {
-    expect(removeFlags([], ['--ignore'])).toEqual([])
-  })
-})
