@@ -40,27 +40,27 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
   const repo = new gitRepository();
   const status: GitChange[] = repo.getDetailedStatus();
 
-  // Initialize LLM provider
-  const sessionCtx = loadContext();
-  const provider = new LLMOrchestrator({
-    provider: config.provider as 'openai' | 'claude' | 'gemini' | 'ollama' | undefined,
-    apiKey: resolveApiKey(config.provider, config.apiKey) ?? undefined,
-    ollamaUrl: config.ollamaUrl ?? undefined,
-    model: config.model ?? undefined,
-    instructions: {
-      commitConvention: config.commitConvention,
-      prMessageStyle: config.prMessageStyle,
-      customInstructions: config.customInstructions,
-      sessionContext: sessionCtx
-    },
-    skipApproval: args.includes('-y') || args.includes('--yes')
-  });
-  provider.abortSignal = cli.commandSignal;
+  // Lazy provider factory — only constructed for commands that need AI
+  const getProvider = () => {
+    const sessionCtx = loadContext();
+    const provider = new LLMOrchestrator({
+      provider: config.provider as 'openai' | 'claude' | 'gemini' | 'ollama' | undefined,
+      apiKey: resolveApiKey(config.provider, config.apiKey) ?? undefined,
+      ollamaUrl: config.ollamaUrl ?? undefined,
+      model: config.model ?? undefined,
+      instructions: {
+        commitConvention: config.commitConvention,
+        prMessageStyle: config.prMessageStyle,
+        customInstructions: config.customInstructions,
+        sessionContext: sessionCtx
+      },
+      skipApproval: args.includes('-y') || args.includes('--yes')
+    });
+    provider.abortSignal = cli.commandSignal;
+    return provider;
+  };
 
   switch (cmd) {
-    case 'test':
-      cli.streamer.showSuccess('Test command executed successfully!');
-      break;
     case 'status':
       gitStatus(repo, cli.streamer);
       break;
@@ -68,16 +68,16 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       await contextCommand(args);
       break;
     case 'add':
-      await gitAdd(repo, status) 
+      await gitAdd(repo, status);
       break;
     case 'commit':
-      await commitCommand(repo, provider, args, cli);
+      await commitCommand(repo, getProvider(), args, cli);
       break;
     case 'squawk':
-      await squawk(repo, provider, args);
+      await squawk(repo, getProvider(), args);
       break;
     case 'checkout':
-      gitCheckout(repo, provider, args)
+      gitCheckout(repo, getProvider(), args);
       break;
     case 'setup':
       // If a specific step is provided (e.g., setup language), run only that step
@@ -98,7 +98,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       await hookCommand(args, cli);
       break;
     case 'open-pr':
-      await handlePrCommand(args, repo, provider)
+      await handlePrCommand(args, repo, getProvider())
       break;
     default:
       cli.streamer.showError(`Unknown command: ${cmd}`);
@@ -113,7 +113,7 @@ async function main(): Promise<void> {
   // Check if a command was passed as argument (e.g., coparrot status)
   // Do this BEFORE parsing commander to avoid conflicts
   const rawArgs = process.argv.slice(2);
-  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'demo', 'test', 'hook', 'open-pr', 'context'];
+  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'hook', 'open-pr', 'context'];
   const commandArg = rawArgs.find(arg => validCommands.includes(arg));
 
   // Parse commander only for options (not commands)
@@ -171,6 +171,7 @@ async function main(): Promise<void> {
 
 // Run the application
 main().catch(error => {
-  console.error(chalk.red.bold('\nFatal Error:'), error);
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(chalk.red.bold('\nFatal Error:'), message);
   process.exit(1);
 });
