@@ -45,7 +45,7 @@ async function installHook(cli: CLI): Promise<void> {
         encoding: 'utf-8'
       }).trim();
     } catch (error) {
-      cli.streamer.showError('Not a git repository. Please run this command from within a git repository.');
+      cli.streamer.showError(i18n.t('git.errors.notARepository', { path: process.cwd() }));
       return;
     }
 
@@ -156,7 +156,7 @@ async function uninstallHook(cli: CLI): Promise<void> {
         encoding: 'utf-8'
       }).trim();
     } catch (error) {
-      cli.streamer.showError('Not a git repository. Please run this command from within a git repository.');
+      cli.streamer.showError(i18n.t('git.errors.notARepository', { path: process.cwd() }));
       return;
     }
 
