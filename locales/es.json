@@ -111,6 +111,12 @@
         "autoApproved": "Aprobado automáticamente"
       }
     },
+    "checkout": {
+      "selectBranch": "Selecciona una rama para cambiar:",
+      "noBranches": "no hay ramas disponibles",
+      "switched": "Cambiado a la rama '{branch}'",
+      "created": "Cambiado a la nueva rama '{branch}'"
+    },
     "errors": {
       "notARepository": "No es un repositorio git: {path}",
       "commandFailed": "El comando git falló: {message}"
