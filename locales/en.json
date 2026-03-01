@@ -145,6 +145,12 @@
         "autoApproved": "Auto-approved"
       }
     },
+    "checkout": {
+      "selectBranch": "Select a branch to switch to:",
+      "noBranches": "no branches available",
+      "switched": "Switched to branch '{branch}'",
+      "created": "Switched to a new branch '{branch}'"
+    },
     "errors": {
       "notARepository": "Not a git repository: {path}",
       "commandFailed": "Git command failed: {message}"
