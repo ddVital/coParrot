@@ -9,6 +9,9 @@ export const isWindows = process.platform === 'win32';
  * Unix:    ~/.config/coparrot
  */
 export function getConfigDir(): string {
+  if (process.env.COPARROT_CONFIG_DIR) {
+    return process.env.COPARROT_CONFIG_DIR;
+  }
   if (isWindows) {
     return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'coparrot');
   }
