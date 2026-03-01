@@ -25,8 +25,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, existsSync, rmSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync, readFileSync, mkdirSync, existsSync, rmSync, mkdtempSync } from 'node:fs';
+import { tmpdir, homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
@@ -79,6 +79,22 @@ const SCENARIOS_FLAG = getFlagValue('--scenarios');
 
 // ─── Provider Definitions ─────────────────────────────────────────────────────
 
+/**
+ * Resolve the model to use for a provider.
+ * Priority: SMOKE_<PROVIDER>_MODEL env var → real coParrot config (if provider matches) → null (SDK default)
+ */
+function resolveModel(providerName: string): string | null {
+  const envKey = `SMOKE_${providerName.toUpperCase()}_MODEL`;
+  if (process.env[envKey]) return process.env[envKey]!;
+  try {
+    const configPath = join(homedir(), '.config', 'coparrot', 'config.json');
+    if (!existsSync(configPath)) return null;
+    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    if (config.provider === providerName && config.model) return config.model;
+  } catch {}
+  return null;
+}
+
 function detectOllamaModel(): string {
   if (process.env.OLLAMA_MODEL) return process.env.OLLAMA_MODEL;
   const result = spawnSync('ollama', ['list'], { encoding: 'utf-8' });
@@ -100,17 +116,17 @@ const ALL_PROVIDERS: ProviderDef[] = [
   {
     name: 'openai',
     envVar: 'OPENAI_API_KEY',
-    configOverride: { provider: 'openai', model: null },
+    configOverride: { provider: 'openai', model: resolveModel('openai') },
   },
   {
     name: 'claude',
     envVar: 'ANTHROPIC_API_KEY',
-    configOverride: { provider: 'claude', model: null },
+    configOverride: { provider: 'claude', model: resolveModel('claude') },
   },
   {
     name: 'gemini',
     envVar: 'GEMINI_API_KEY',
-    configOverride: { provider: 'gemini', model: null },
+    configOverride: { provider: 'gemini', model: resolveModel('gemini') },
   },
   {
     name: 'ollama',
