@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import path from 'path';
 import i18n from './i18n.js';
 import { shellEscape, isWindows } from '../utils/platform.js';
