@@ -21,6 +21,7 @@ export function createMockRepo(overrides: Record<string, unknown> = {}): GitRepo
     getBranches: vi.fn().mockReturnValue(['main', 'feature/test-branch']),
     createBranch: vi.fn().mockReturnValue(''),
     checkout: vi.fn().mockReturnValue(''),
+    deleteBranch: vi.fn().mockReturnValue('Deleted branch feature/test (was abc1234).'),
     push: vi.fn().mockReturnValue(''),
     pull: vi.fn().mockReturnValue(''),
     getRemoteUrl: vi.fn().mockReturnValue('https://github.com/test/repo'),
