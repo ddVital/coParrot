@@ -3,7 +3,6 @@ import ora, { Ora } from 'ora';
 import { execSync } from 'child_process';
 import { displayWelcomeBanner } from '../utils/welcome-banner.js';
 import i18n from '../services/i18n.js';
-import TransientProgress from '../utils/transient-progress.js';
 
 interface GitChange {
   status: string;
@@ -24,13 +23,11 @@ class StreamingOutput {
   renderer: any; // TODO: type when renderer.ts is migrated
   currentSpinner: Ora | null;
   buffer: string;
-  transientProgress: any; // TODO: type when transient-progress.ts is migrated
 
   constructor(renderer: any) {
     this.renderer = renderer;
     this.currentSpinner = null;
     this.buffer = '';
-    this.transientProgress = new TransientProgress();
   }
 
   /**
@@ -246,36 +243,6 @@ class StreamingOutput {
     }
   }
 
-  /**
-   * Start a transient progress operation (disappears when done)
-   */
-  startTransientOperation(message: string): any {
-    this.stopThinking();
-    return this.transientProgress.createOperation(message);
-  }
-
-  /**
-   * Start a generating operation with shimmer effect (for AI content generation)
-   */
-  startGeneratingOperation(message: string): any {
-    this.stopThinking();
-    return this.transientProgress.createGeneratingOperation(message);
-  }
-
-  /**
-   * Show a simple transient message (for quick status updates)
-   */
-  showTransientMessage(message: string, status: 'running' | 'success' | 'error' = 'running'): void {
-    this.stopThinking();
-    this.transientProgress.showTransient(message, status);
-  }
-
-  /**
-   * Clear all transient messages
-   */
-  clearTransient(): void {
-    this.transientProgress.clearTransient();
-  }
 }
 
 export default StreamingOutput;
