@@ -161,7 +161,8 @@ describe('Model forwarding — OpenAI', () => {
     const llm = new LLMOrchestrator({ provider: 'openai', apiKey: 'test', model: 'gpt-3.5-turbo' })
     await llm.call({}, 'commit')
     expect(openaiMocks.chatCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gpt-3.5-turbo' })
+      expect.objectContaining({ model: 'gpt-3.5-turbo' }),
+      expect.anything()
     )
   })
 
@@ -169,7 +170,8 @@ describe('Model forwarding — OpenAI', () => {
     const llm = new LLMOrchestrator({ provider: 'openai', apiKey: 'test' })
     await llm.call({}, 'commit')
     expect(openaiMocks.chatCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gpt-4' })
+      expect.objectContaining({ model: 'gpt-4' }),
+      expect.anything()
     )
   })
 
@@ -191,7 +193,8 @@ describe('Model forwarding — Claude', () => {
     const llm = new LLMOrchestrator({ provider: 'claude', apiKey: 'test', model: 'claude-3-haiku-20240307' })
     await llm.call({}, 'commit')
     expect(claudeMocks.messagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-3-haiku-20240307' })
+      expect.objectContaining({ model: 'claude-3-haiku-20240307' }),
+      expect.anything()
     )
   })
 
@@ -199,7 +202,8 @@ describe('Model forwarding — Claude', () => {
     const llm = new LLMOrchestrator({ provider: 'claude', apiKey: 'test' })
     await llm.call({}, 'commit')
     expect(claudeMocks.messagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-3-5-sonnet-20241022' })
+      expect.objectContaining({ model: 'claude-3-5-sonnet-20241022' }),
+      expect.anything()
     )
   })
 
@@ -250,7 +254,8 @@ describe('Model forwarding — Ollama', () => {
     await llm.call({}, 'commit')
     expect(axiosMocks.post).toHaveBeenCalledWith(
       'http://localhost:11434/api/generate',
-      expect.objectContaining({ model: 'llama3.2', stream: false })
+      expect.objectContaining({ model: 'llama3.2', stream: false }),
+      expect.anything()
     )
   })
 
@@ -263,7 +268,8 @@ describe('Model forwarding — Ollama', () => {
     await llm.call({}, 'commit')
     expect(axiosMocks.post).toHaveBeenCalledWith(
       'http://192.168.1.50:11434/api/generate',
-      expect.objectContaining({ model: 'mistral' })
+      expect.objectContaining({ model: 'mistral' }),
+      expect.anything()
     )
   })
 
