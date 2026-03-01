@@ -77,7 +77,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       await squawk(repo, getProvider(), args);
       break;
     case 'checkout':
-      gitCheckout(repo, getProvider(), args);
+      await gitCheckout(repo, getProvider(), args);
       break;
     case 'setup':
       // If a specific step is provided (e.g., setup language), run only that step
