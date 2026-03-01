@@ -10,9 +10,11 @@ vi.mock('../../../src/services/i18n.js', () => ({
 }))
 
 const selectMock = vi.hoisted(() => vi.fn())
+const checkboxMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@inquirer/prompts', () => ({
   select: selectMock,
+  checkbox: checkboxMock,
 }))
 
 import { gitCheckout } from '../../../src/commands/checkout.js'
@@ -111,6 +113,98 @@ describe('gitCheckout', () => {
       await gitCheckout(repo, provider, ['-b', 'feature/foo'])
 
       expect(consoleSpy).toHaveBeenCalledWith('Switched to a new branch feature/foo')
+      consoleSpy.mockRestore()
+    })
+  })
+
+  describe('delete mode (-d / -D flags)', () => {
+    it('shows multi-select (excluding current) and deletes selected branches with -D', async () => {
+      const repo = createMockRepo({
+        getCurrentBranch: vi.fn().mockReturnValue('main'),
+        getBranches: vi.fn().mockReturnValue(['main', 'feature/old', 'feature/done']),
+      })
+      const provider = createMockProvider()
+      checkboxMock.mockResolvedValue(['feature/old', 'feature/done'])
+
+      await gitCheckout(repo, provider, ['-D'])
+
+      expect(checkboxMock).toHaveBeenCalled()
+      expect(repo.deleteBranch).toHaveBeenCalledWith('feature/old', true)
+      expect(repo.deleteBranch).toHaveBeenCalledWith('feature/done', true)
+    })
+
+    it('deletes named branch directly with -D <branch> without showing selector', async () => {
+      const repo = createMockRepo()
+      const provider = createMockProvider()
+
+      await gitCheckout(repo, provider, ['-D', 'feature/old'])
+
+      expect(checkboxMock).not.toHaveBeenCalled()
+      expect(repo.deleteBranch).toHaveBeenCalledWith('feature/old', true)
+    })
+
+    it('uses safe delete (force=false) with -d flag', async () => {
+      const repo = createMockRepo()
+      const provider = createMockProvider()
+
+      await gitCheckout(repo, provider, ['-d', 'feature/merged'])
+
+      expect(repo.deleteBranch).toHaveBeenCalledWith('feature/merged', false)
+    })
+
+    it('does nothing when nothing is selected in multi-select', async () => {
+      const repo = createMockRepo({
+        getCurrentBranch: vi.fn().mockReturnValue('main'),
+        getBranches: vi.fn().mockReturnValue(['main', 'feature/old']),
+      })
+      const provider = createMockProvider()
+      checkboxMock.mockResolvedValue([])
+
+      await gitCheckout(repo, provider, ['-D'])
+
+      expect(repo.deleteBranch).not.toHaveBeenCalled()
+    })
+
+    it('excludes current branch from interactive delete list', async () => {
+      const repo = createMockRepo({
+        getCurrentBranch: vi.fn().mockReturnValue('main'),
+        getBranches: vi.fn().mockReturnValue(['main', 'feature/old']),
+      })
+      const provider = createMockProvider()
+      checkboxMock.mockResolvedValue(['feature/old'])
+
+      await gitCheckout(repo, provider, ['-D'])
+
+      const callArg = checkboxMock.mock.calls[0][0]
+      const choices = callArg.choices.map((c: { value: string }) => c.value)
+      expect(choices).not.toContain('main')
+      expect(choices).toContain('feature/old')
+    })
+
+    it('logs error when no other branches to delete', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const repo = createMockRepo({
+        getCurrentBranch: vi.fn().mockReturnValue('main'),
+        getBranches: vi.fn().mockReturnValue(['main']),
+      })
+      const provider = createMockProvider()
+
+      await gitCheckout(repo, provider, ['-D'])
+
+      expect(checkboxMock).not.toHaveBeenCalled()
+      expect(repo.deleteBranch).not.toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('logs error when -b and -D are used together', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const repo = createMockRepo()
+      const provider = createMockProvider()
+
+      await gitCheckout(repo, provider, ['-b', '-D'])
+
+      expect(repo.createBranch).not.toHaveBeenCalled()
+      expect(repo.deleteBranch).not.toHaveBeenCalled()
       consoleSpy.mockRestore()
     })
   })
