@@ -98,7 +98,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
       await hookCommand(args, cli);
       break;
     case 'open-pr':
-      await handlePrCommand(args, repo, getProvider())
+      await handlePrCommand(args, repo, getProvider());
       break;
     default:
       cli.streamer.showError(`Unknown command: ${cmd}`);
@@ -140,6 +140,7 @@ async function main(): Promise<void> {
       'squawk': 'Commit each file individually with realistic timestamps (--from YYYY-MM-DD[THH:MM:SS], --to, --exclude-weekends)',
       'hook': 'Manage git hooks (install/uninstall global commit message hook)',
       'setup': 'Reconfigure coParrot settings. Use "setup <step>" for specific updates (language|provider|model|convention|custom)',
+      'checkout': 'Switch branches (interactive if no args), create with -b, delete with -d/-D',
       'context': 'Set project context for AI-generated messages. Use "context clear" to remove it',
       'open-pr': "Open a pull request with AI-generated title and description"
     },
