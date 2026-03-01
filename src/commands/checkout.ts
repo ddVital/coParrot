@@ -1,26 +1,26 @@
 import i18n from '../services/i18n.js';
+import { select } from '@inquirer/prompts';
 import { parseFlag } from '../utils/args-parser.js';
 import type GitRepository from '../services/git.js';
 import type LLMOrchestrator from '../services/llms.js';
 
 interface ParsedCheckoutArgs {
   branchName: string | null;
-  context: string | null;
   shouldCreate: boolean;
 }
 
 interface ValidateCheckoutArgsInput {
   branchName: string | null;
-  context: string | null;
   hasCreateFlag: boolean;
 }
 
 /**
  * Handles git checkout operations
  * Supports:
+ * - checkout: Interactive branch selection
+ * - checkout <branch>: Switch to existing branch
  * - checkout -b <name>: Create and checkout new branch
- * - checkout -b --context: Generate branch name from context
- * - checkout: Interactive branch selection (TODO)
+ * - checkout -b: Generate branch name from session context via AI
  */
 export async function gitCheckout(
   repo: GitRepository,
@@ -31,29 +31,54 @@ export async function gitCheckout(
   const parsedArgs = parseCheckoutArgs(args);
   if (!parsedArgs) return; // Validation failed, error already logged
 
-  const { branchName, context, shouldCreate } = parsedArgs;
-  const recentBranches = repo.getBranches({ count: 10 });
+  const { branchName, shouldCreate } = parsedArgs;
 
   try {
-    // Determine final branch name
-    const finalBranchName = branchName || await provider.generateBranchName({
-      description: context,
-      recentBranches: recentBranches
-    });
-
-    // Execute the checkout operation
-    if (shouldCreate) {
-      // repo.createBranch(finalBranchName, true);
-      console.log("creating and checking out to branch", finalBranchName);
+    if (!shouldCreate && !branchName) {
+      // Interactive mode: select from existing branches
+      await interactiveCheckout(repo);
+    } else if (shouldCreate) {
+      // Create and checkout — name may come from AI if not provided
+      await createCheckout(repo, provider, branchName);
     } else {
-      // repo.checkout(finalBranchName);
-      console.log("checking out to branch", finalBranchName);
+      // Switch to existing branch
+      const output = repo.checkout(branchName!);
+      console.log(output || i18n.t('git.checkout.switched', { branch: branchName }));
     }
   } catch (error) {
     const err = error as Error;
     console.error(i18n.t('output.prefixes.error'), err.message);
+  }
+}
+
+async function interactiveCheckout(repo: GitRepository): Promise<void> {
+  const branches = repo.getBranches();
+  if (branches.length === 0) {
+    console.error(i18n.t('output.prefixes.error'), i18n.t('git.checkout.noBranches'));
     return;
   }
+  const selected = await select({
+    message: i18n.t('git.checkout.selectBranch'),
+    choices: branches.map(b => ({ value: b, name: b }))
+  });
+  const output = repo.checkout(selected);
+  console.log(output || i18n.t('git.checkout.switched', { branch: selected }));
+}
+
+async function createCheckout(
+  repo: GitRepository,
+  provider: LLMOrchestrator,
+  branchName: string | null
+): Promise<void> {
+  const recentBranches = repo.getBranches({ count: 10 });
+  const finalBranchName = branchName || await provider.generateBranchName({
+    description: null,
+    recentBranches
+  });
+  if (!finalBranchName) return; // user cancelled approval
+
+  const output = repo.createBranch(finalBranchName, true);
+  console.log(output || i18n.t('git.checkout.created', { branch: finalBranchName }));
 }
 
 /**
@@ -62,16 +87,15 @@ export async function gitCheckout(
  */
 function parseCheckoutArgs(args: string[]): ParsedCheckoutArgs | null {
   const hasCreateFlag = args.includes('-b');
-  const branchName = hasCreateFlag ? parseFlag(args, '-b')[0] || null : null;
 
-  // Context can be multiple words, so join them with spaces
-  const contextWords = parseFlag(args, '-c').length > 0
-    ? parseFlag(args, '-c')
-    : parseFlag(args, '--context');
-  const context = contextWords.length > 0 ? contextWords.join(' ') : null;
+  // For create mode: name is the value after -b
+  // For switch mode: name is the first positional (non-flag) argument
+  const branchName = hasCreateFlag
+    ? parseFlag(args, '-b')[0] || null
+    : args.find(a => !a.startsWith('-')) || null;
 
   // Validate argument combinations
-  const validationError = validateCheckoutArgs({ branchName, context, hasCreateFlag });
+  const validationError = validateCheckoutArgs({ branchName, hasCreateFlag });
   if (validationError) {
     console.error(i18n.t('output.prefixes.error'), validationError);
     return null;
@@ -79,7 +103,6 @@ function parseCheckoutArgs(args: string[]): ParsedCheckoutArgs | null {
 
   return {
     branchName,
-    context,
     shouldCreate: hasCreateFlag
   };
 }
@@ -90,28 +113,11 @@ function parseCheckoutArgs(args: string[]): ParsedCheckoutArgs | null {
  */
 function validateCheckoutArgs({
   branchName,
-  context,
   hasCreateFlag
 }: ValidateCheckoutArgsInput): string | null {
-  // Plain checkout with no arguments - need interactive selector (not implemented yet)
-  if (!hasCreateFlag && !branchName && !context) {
-    return "checkout requires arguments. Use -b <name> to create a branch or -b --context to generate one";
-  }
-
-  // -b flag requires either a branch name or context
-  if (hasCreateFlag && !branchName && !context) {
-    return "switch `-b` requires a branch name or --context";
-  }
-
-  // --context can only be used with -b flag
-  if (context && !hasCreateFlag) {
-    return "--context can only be used with -b";
-  }
-
-  // Cannot use both branch name and context together
-  if (hasCreateFlag && branchName && context) {
-    return "cannot use --context when branch name is provided";
-  }
-
-  return null; // Valid
+  // No args → interactive branch selection (valid)
+  // -b alone → AI generates branch name from session context (valid)
+  // -b <name> → create and checkout named branch (valid)
+  // <branch> → switch to existing branch (valid)
+  return null;
 }
