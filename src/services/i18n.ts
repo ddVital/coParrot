@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -58,7 +58,10 @@ class I18nService {
    */
   loadTranslations(language: string): void {
     try {
-      const localesPath = join(__dirname, '..', '..', '..', 'locales', `${language}.json`);
+      // src/services/ (tsx) needs 2 levels up; dist/src/services/ (compiled) needs 3
+      const fromSrc = join(__dirname, '..', '..', 'locales', `${language}.json`);
+      const fromDist = join(__dirname, '..', '..', '..', 'locales', `${language}.json`);
+      const localesPath = existsSync(fromSrc) ? fromSrc : fromDist;
       const content = readFileSync(localesPath, 'utf8');
       this.translations[language] = JSON.parse(content);
     } catch (error) {
