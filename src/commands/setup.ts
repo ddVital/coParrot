@@ -99,9 +99,34 @@ const API_KEY_URLS: Record<string, string> = {
 };
 
 // Utility functions
-const printStepHeader = (n: number, total: number, label: string): void => {
-  console.log();
-  console.log(chalk.dim(`  [${n}/${total}]`) + '  ' + chalk.white(label));
+const printStepHeader = (n: number, total: number, label: string, answer?: string): void => {
+  if (answer !== undefined) {
+    console.log(chalk.dim(`  [${n}/${total}]`) + '  ' + chalk.dim(label.padEnd(20)) + chalk.white(answer));
+  } else {
+    console.log();
+    console.log(chalk.dim(`  [${n}/${total}]`) + '  ' + chalk.white(label));
+  }
+};
+
+const languageLabel = (lang: string): string => {
+  const labels: Record<string, string> = { en: 'English', 'pt-BR': 'Português (Brasil)', es: 'Español' };
+  return labels[lang] || lang;
+};
+
+const providerLabel = (provider: string, ollamaUrl: string | null): string => {
+  const names: Record<string, string> = { openai: 'OpenAI', claude: 'Claude', gemini: 'Gemini', ollama: 'Ollama' };
+  const name = names[provider] || provider;
+  return provider === 'ollama' && ollamaUrl ? `${name}  ·  ${ollamaUrl}` : name;
+};
+
+const conventionLabel = (convention: CommitConvention): string => {
+  const labels: Record<string, string> = {
+    conventional: 'Conventional Commits',
+    gitmoji: 'Gitmoji',
+    simple: 'Simple',
+    custom: 'Custom'
+  };
+  return labels[convention.type] || convention.type;
 };
 
 const showError = (message: string, hint: string | null = null): void => {
@@ -225,24 +250,25 @@ export async function setup(): Promise<SetupConfig | undefined> {
   console.log(chalk.dim('  setup') + '  ' + chalk.white('4 steps'));
 
   try {
-    printStepHeader(1, 4, 'Language');
     const language = await selectLanguage();
+    printStepHeader(1, 4, 'Language', languageLabel(language));
     i18n.setLanguage(language);
 
-    printStepHeader(2, 4, 'Provider');
     const provider = await selectProvider();
     const { apiKey, ollamaUrl } = await promptProviderCredentials(provider);
+    printStepHeader(2, 4, 'Provider', providerLabel(provider, ollamaUrl));
 
-    printStepHeader(3, 4, 'Model');
     const model = await selectModel(provider, ollamaUrl, apiKey);
+    printStepHeader(3, 4, 'Model', model);
 
-    printStepHeader(4, 4, 'Commit convention');
     const convention = await selectConvention();
+    printStepHeader(4, 4, 'Commit convention', conventionLabel(convention));
 
     const prTemplate = await detectPRTemplate();
+    if (prTemplate.path) {
+      console.log(chalk.green('  ✓ ') + chalk.dim(`PR template: ${prTemplate.path}`));
+    }
 
-    console.log();
-    console.log(chalk.dim('  [opt]') + '  ' + chalk.white('Custom instructions'));
     const customInstructions = await promptCustomInstructions();
 
     console.clear();
@@ -539,24 +565,12 @@ export async function detectPRTemplate(): Promise<PRTemplate> {
 }
 
 async function promptCustomInstructions(): Promise<string> {
-  const wantsCustom = await confirm({
-    message: i18n.t('setup.wantsCustomInstructions'),
-    default: false
-  }, {
-    clearPromptOnDone: true
-  });
-
-  if (!wantsCustom) return '';
-
   console.log();
-  console.log(chalk.dim('  ' + i18n.t('setup.customInstructionsHelp')));
-  console.log(chalk.dim('  ' + i18n.t('setup.customInstructionsEditor')));
-  console.log();
+  console.log(chalk.dim('  [opt]') + '  ' + chalk.white('Custom instructions') + chalk.dim('  ·  save empty to skip'));
 
   const instructions = await editor({
     message: i18n.t('setup.enterCustomInstructions'),
-    default: i18n.t('setup.customInstructionsExample'),
-    waitForUserInput: false,
+    waitForUserInput: true,
     validate: validateInstructions
   }, {
     clearPromptOnDone: true
