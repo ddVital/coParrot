@@ -86,8 +86,8 @@ if [ -z "$COMMIT_SOURCE" ]; then
         exit 0
       fi
 
-      # Generate commit message using coparrot (suppress stderr to avoid polluting output)
-      GENERATED_MSG=$($COPARROT_CMD commit --hook 2>/dev/null)
+      # Generate commit message using coparrot
+      GENERATED_MSG=$($COPARROT_CMD commit --hook 2>/dev/tty)
 
       # If coparrot generated a message, prepend it to the commit message file
       if [ -n "$GENERATED_MSG" ]; then
