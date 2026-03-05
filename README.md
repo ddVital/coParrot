@@ -2,6 +2,8 @@
 
 # coParrot
 
+<img width="1336" height="934" alt="screenshot-2026-03-04_23-41-24" src="https://github.com/user-attachments/assets/3be0f722-c1ea-4bd8-ab67-d1c871a56b3c" />
+
 **AI-powered Git assistant for the terminal**
 
 [![npm version](https://img.shields.io/npm/v/coparrot?style=flat-square&color=black)](https://www.npmjs.com/package/coparrot)
