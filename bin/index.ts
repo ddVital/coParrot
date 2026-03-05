@@ -130,7 +130,7 @@ async function main(): Promise<void> {
 
   const cli = new CLIClass({
     appName: 'CoParrot',
-    version: '1.0.1',
+    version: '2.0.0',
     multiline: !options.singleLine,
     onCommand: handleCommand,
     customCommands: {
