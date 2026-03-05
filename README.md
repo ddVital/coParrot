@@ -1,397 +1,223 @@
-# 🦜 coParrot
+<div align="center">
 
-> Your intelligent, multilingual Git assistant powered by AI
+# coParrot
 
-coParrot is an AI-powered CLI tool that makes Git operations smarter and more intuitive. Generate meaningful commit messages, commit files individually or in groups, and let AI understand your changes - all in your preferred language.
+**AI-powered Git assistant for the terminal**
 
-[![npm version](https://img.shields.io/npm/v/coparrot.svg)](https://www.npmjs.com/package/coparrot)
-[![License](https://img.shields.io/badge/license-Custom-blue.svg)](LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/ddVital/coParrot.svg)](https://github.com/ddVital/coParrot/issues)
+[![npm version](https://img.shields.io/npm/v/coparrot?style=flat-square&color=black)](https://www.npmjs.com/package/coparrot)
+[![npm downloads](https://img.shields.io/npm/dm/coparrot?style=flat-square&color=black)](https://www.npmjs.com/package/coparrot)
+[![License](https://img.shields.io/badge/license-Non--Commercial-black?style=flat-square)](LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/ddVital/coParrot?style=flat-square&color=black)](https://github.com/ddVital/coParrot/issues)
 
-## ✨ Features
+Generate commit messages, stage files, open PRs, and automate your Git workflow with AI. Works with OpenAI, Anthropic, Google Gemini, and Ollama.
 
-- 🤖 **AI-Generated Commit Messages** - Let AI analyze your changes and create meaningful commit messages
-- 🔄 **Smart File Commits** - Commit files individually or group them by patterns
-- 🌍 **Multilingual Support** - English, Portuguese (pt-BR), and Spanish
-- 🎯 **Interactive File Selection** - Choose which files to stage with an intuitive interface
-- ⚙️ **Flexible Configuration** - Support for OpenAI, Claude, and Gemini
-- 📋 **Commit Conventions** - Conventional Commits, Gitmoji, or custom formats
-- 🎨 **Beautiful CLI** - Progress bars, colors, and clean output
-- 🔧 **Customizable** - Configure commit styles, branch naming, and more
+</div>
 
-## 📦 Installation
-
-### Quick Install (Recommended)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/ddVital/coParrot/main/install.sh | bash
-```
-
-The installer will check for Node.js, help you install it if needed, and set up coParrot globally.
-
-### npm
+## Installation
 
 ```bash
 npm install -g coparrot
 ```
 
-## 🚀 Quick Start
+Or with the install script (handles Node.js setup automatically):
 
-### First Time Setup
+```bash
+curl -fsSL https://raw.githubusercontent.com/ddVital/coParrot/main/install.sh | bash
+```
 
-Run coParrot for the first time to configure:
+## Getting started
+
+Run `coparrot` for the first time to go through interactive setup:
 
 ```bash
 coparrot
 ```
 
-The interactive setup will guide you through:
-1. **Language Selection** - Choose your preferred language
-2. **Provider Setup** - Select OpenAI, Claude, or Gemini
-3. **API Key** - Enter your API key
-4. **Preferences** - Configure commit conventions, code review style, etc.
+Setup walks you through language, provider, model, and commit convention. If your API key is already set as an environment variable, it will be detected automatically.
 
-### Basic Usage
+### Setting up your API key
+
+coParrot reads credentials from environment variables. Set the one for your provider:
 
 ```bash
-# Start coParrot
-coparrot
+# OpenAI
+export OPENAI_API_KEY=sk-...
 
-# Inside coParrot CLI
-> add          # Stage files interactively
-> commit       # Generate AI commit message
-> squawk       # Commit each file individually
-> status       # Show repository status
-> setup        # Reconfigure settings
+# Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Google Gemini
+export GEMINI_API_KEY=...
 ```
 
-## 📖 Commands
+Add the export to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) to persist it.
 
-### `add` - Interactive File Staging
+For Ollama, no API key is needed. See [Ollama setup](https://docs.ollama.com/quickstart) below.
 
-Stage files interactively with a searchable list:
+## Usage
+
+Commands can be run from inside the interactive shell or directly from your terminal:
 
 ```bash
-> add
+coparrot commit       # run a single command and exit
+cpt commit            # same, using the short alias
+cpt squawk --yes      # flags work the same way
 ```
 
-**Features:**
-- ✅ Multi-select files with Space
-- 🔍 Search and filter by filename
-- 📊 Shows file status (Modified, Added, Deleted, etc.)
+Any command that involves AI generation accepts `-y` / `--yes` to skip the approval prompt.
 
----
+## Commands
 
-### `commit` - AI-Powered Commit
+| Command | Description |
+|---|---|
+| `context` | Set task context to improve AI output quality |
+| `add` | Stage files with an interactive, searchable list |
+| `commit` | Generate an AI commit message for staged files |
+| `squawk` | Commit each changed file individually with AI messages |
+| `open-pr` | Generate and open a pull request via `gh` |
+| `status` | Show repository status |
+| `checkout` | Switch, create, or delete branches |
+| `setup [step]` | Configure or update a specific setting |
+| `hook` | Install or uninstall the Git commit hook |
 
-Generate an AI commit message for staged files:
+## context
+
+**Run this at the start of every task.** Context sets a title and description for what you are currently working on. This information is passed to every AI call, which significantly improves the quality of commit messages, branch names, and PR descriptions.
 
 ```bash
-> commit
+context          # set context interactively
+context show     # display current context
+context clear    # remove context
 ```
 
-**Process:**
-1. Analyzes your staged changes
-2. Generates a contextual commit message
-3. Shows message for approval
-4. Options to approve, retry, or customize
+## commit
 
-**Example Output:**
+Analyzes staged changes and generates a contextual commit message. You can approve, retry, or provide custom instructions before the commit is created.
+
 ```
-══════════════════════════════════════════
   AI Generated Message:
-══════════════════════════════════════════
+  feat: add Spanish localization
 
-feat: add multilingual support for Spanish
-
-══════════════════════════════════════════
-
-✔ What would you like to do?
-  ✓ Approve and use this response
-  ↻ Retry (generate a new response)
-  ✎ Retry with custom instructions
+  ? What would you like to do?
+  > Approve and use this message
+    Retry
+    Retry with custom instructions
 ```
 
----
+## squawk
 
-### `squawk` - Individual File Commits
-
-Commit each changed file individually with AI-generated messages:
+Commits each changed file individually. Useful for splitting unrelated changes or retroactively creating a clean commit history.
 
 ```bash
-> squawk
+squawk                                      # one commit per file, with approval prompts
+squawk -i                                   # interactive: configure options step by step
+squawk -y                                   # skip approval prompts
 
-# With patterns
-> squawk --ignore "*.md" "*.txt"
-> squawk --group "*.json" "*.yaml"
+squawk --group "*.json" "*.yaml"            # group matched files into a single commit
+squawk --ignore "*.md" "*.txt"              # skip files matching patterns
+
+squawk --from 2024-01-01 --to 2024-01-31              # distribute timestamps across a date range
+squawk --from 2024-01-01T09:00:00 --to 2024-01-31T18:00:00   # with exact times
+squawk --exclude-weekends                   # skip weekends when distributing timestamps
+squawk --timezone UTC                       # timezone for timestamp distribution
 ```
 
-**Options:**
-- `--ignore <patterns>` - Ignore files matching glob patterns
-- `--group <patterns>` - Group files by pattern (one commit per group)
+The `--from`/`--to` flags are useful when committing work that was done over a period of time and you want the history to reflect that. Timestamps are distributed proportionally based on the size of each change.
 
-**Example:**
-```
-🦜 Squawk Progress:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The `-i` / `--interactive` flag prompts you to configure ignore patterns, grouping, and date ranges step by step, without needing to remember the flags.
 
-📦 [1/3] *.json (2 files) ............... ✓
-📄 [2/3] script.js ...................... ✓
-📄 [3/3] README.md ...................... ✓
+## open-pr
 
-✨ 3 commits created (4 files)
-   • 1 group commits (2 files)
-   • 2 individual commits
-
-⏱️  Completed in 12.3s
-```
-
-**Grouping Examples:**
-```bash
-# Group all JSON files together, all PNG files together
-> squawk --group "*.json" "*.png"
-
-# Ignore test files, group assets
-> squawk --ignore "*.test.js" --group "assets/*"
-
-# Group by directory
-> squawk --group "src/components/*" "src/utils/*"
-```
-
----
-
-### `status` - Repository Status
-
-Show current repository status with changed files:
+Generates an AI PR title and description based on your branch commits and diff, then opens the PR using the GitHub CLI.
 
 ```bash
-> status
+open-pr              # open PR against the default base branch
+open-pr main         # open PR against a specific branch
 ```
 
-**Displays:**
-- Current branch
-- Modified files
-- Untracked files
-- Staged files
+> Requires the `gh` CLI installed and authenticated. If your branch has not been pushed yet, coParrot will push it automatically before creating the PR.
 
----
+If a PR template exists in your repository (`.github/pull_request_template.md` or similar), it will be used to structure the generated body.
 
-### `setup` - Reconfigure Settings
-
-Update your coParrot configuration:
+## checkout
 
 ```bash
-> setup
+checkout                  # interactive branch selection
+checkout my-branch        # switch to an existing branch
+checkout -b               # create a new branch (AI generates name from context)
+checkout -b my-feature    # create a branch with a specific name
+checkout -d               # interactively select branches to delete
+checkout -d my-branch     # delete a specific branch
+checkout -D my-branch     # force delete
 ```
 
-**What you can change:**
-- Language preference
-- LLM provider and API key
-- Model selection
-- Commit message convention
-- Branch naming convention
-- Code review style
-- PR message style
-- Custom instructions
+When using `-b` without a name, the AI generates a branch name based on the current context. Set `context` first for better results.
 
----
+## setup
 
-### `checkout` - Smart Branch Creation
-
-Create and switch to new branches:
+Run the full setup wizard or target a specific step:
 
 ```bash
-> checkout -b feature-branch
-> checkout --ai              # AI generates branch name
+setup                  # full setup wizard
+setup language         # change language
+setup provider         # change provider and credentials
+setup model            # change model (uses current provider)
+setup convention       # change commit convention
+setup custom           # update custom AI instructions
 ```
 
----
+Available commit conventions: Conventional Commits, Gitmoji, Simple, or Custom (define your own format).
 
-## ⚙️ Configuration
+## hook
 
-### Config File Location
-
-```
-~/.coparrot/config.json
-```
-
-### Configuration Options
-
-```json
-{
-  "language": "en",
-  "provider": "openai",
-  "apiKey": "your-api-key",
-  "model": "gpt-4",
-  "commitConvention": {
-    "type": "conventional"
-  },
-  "branchNaming": {
-    "type": "gitflow"
-  }
-}
-```
-
-### Commit Conventions
-
-**Conventional Commits** (Default)
-```
-feat: add new feature
-fix: resolve bug
-docs: update documentation
-```
-
-**Gitmoji**
-```
-✨ add new feature
-🐛 fix bug
-📝 update documentation
-```
-
-**Simple**
-```
-add new feature
-fix bug
-update documentation
-```
-
-**Custom**
-Define your own format with placeholders like `{type}`, `{scope}`, `{message}`
-
-### Supported Providers
-
-| Provider | Models |
-|----------|--------|
-| **OpenAI** | GPT-4, GPT-3.5-turbo |
-| **Claude** | Claude 3 Opus, Sonnet, Haiku |
-| **Gemini** | Gemini Pro |
-
-### API Keys
-
-- **OpenAI**: https://platform.openai.com/api-keys
-- **Claude**: https://console.anthropic.com/settings/keys
-- **Gemini**: https://makersuite.google.com/app/apikey
-
-## 🌍 Multilingual Support
-
-coParrot supports three languages:
-
-- 🇺🇸 **English** (`en`)
-- 🇧🇷 **Portuguese** (`pt-BR`)
-- 🇪🇸 **Spanish** (`es`)
-
-All UI elements, messages, and prompts are fully localized. Change language in setup:
+Installs a `prepare-commit-msg` Git hook in the current repository. Once installed, running `git commit` will automatically generate a commit message via coParrot and open it in your editor for review before finalizing.
 
 ```bash
-> setup
-# Select "Escolha seu idioma preferido" / "Choose your preferred language"
+hook install      # install the hook in the current repository
+hook uninstall    # remove the hook
 ```
 
-## 💡 Advanced Usage
+Installing the hook also registers a `git squawk` alias globally, so you can run squawk directly from Git without entering the coParrot shell.
 
-### Automation with `--yes` flag
+## Providers
 
-Skip approval prompts (use with caution):
+coParrot works with any text model from the supported providers. During setup, available models are fetched from the provider API and presented in a searchable list.
+
+| Provider | Notes |
+|---|---|
+| OpenAI | Requires `OPENAI_API_KEY` |
+| Anthropic | Requires `ANTHROPIC_API_KEY` |
+| Google Gemini | Requires `GEMINI_API_KEY` |
+| Ollama | No API key required, runs locally |
+
+### Ollama
+
+Ollama lets you run models locally without any API key. Install Ollama and pull a model before running setup:
 
 ```bash
-> commit --yes
-> squawk --yes
+ollama pull qwen2.5:3b-instruct
 ```
 
-### Complex Grouping
+During setup, select Ollama as your provider and enter your Ollama server URL (default: `http://localhost:11434`). coParrot will list your locally installed models to choose from.
 
-Group multiple file types strategically:
+See the [Ollama documentation](https://ollama.com/download) for installation instructions.
 
-```bash
-# Group configs, components, and tests separately
-> squawk --group "*.config.js" "src/components/*" "**/*.test.js"
+## Languages
 
-# Ignore build files, group source by directory
-> squawk --ignore "dist/*" "build/*" --group "src/*" "lib/*"
-```
+The full UI is available in English (`en`), Portuguese Brazil (`pt-BR`), and Spanish (`es`). Change language at any time with `setup language`.
 
-### Custom Instructions
+## Configuration
 
-Add persistent instructions in setup:
+Config is stored at `~/.coparrot/config.json`. You can also manage it via `setup` commands.
 
-**Examples:**
-- "Always keep messages under 50 characters"
-- "Include ticket numbers from branch names"
-- "Focus on performance implications"
-- "Use emojis in all commit messages"
+## Contributing
 
-## 🏗️ Project Structure
+Bug reports and pull requests are welcome at [github.com/ddVital/coParrot](https://github.com/ddVital/coParrot).
 
-```
-coparrot/
-├── bin/
-│   └── index.js           # CLI entry point
-├── src/
-│   ├── commands/          # Command implementations
-│   │   ├── add.js
-│   │   ├── commit.js
-│   │   ├── squawk.js
-│   │   └── checkout.js
-│   ├── services/          # Core services
-│   │   ├── config.js      # Configuration management
-│   │   ├── git.js         # Git operations
-│   │   ├── llms.js        # LLM orchestration
-│   │   ├── i18n.js        # Internationalization
-│   │   └── prompts.js     # AI prompt templates
-│   ├── lib/               # UI components
-│   │   ├── cli.js         # CLI framework
-│   │   ├── renderer.js    # Markdown renderer
-│   │   └── streamer.js    # Streaming output
-│   └── utils/             # Utilities
-│       ├── glob.js        # Pattern matching
-│       └── repo-stats.js  # Repository statistics
-├── locales/               # Translations
-│   ├── en.json
-│   ├── pt-BR.json
-│   └── es.json
-└── package.json
-```
+## License
 
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Development setup
-- Code structure guidelines
-- How to add new commands
-- Testing guidelines
-- Pull request process
-
-**Quick Links:**
-- 🐛 [Report a Bug](https://github.com/ddVital/coParrot/issues)
-- 💡 [Request a Feature](https://github.com/ddVital/coParrot/issues)
-- 🔧 [Submit a PR](https://github.com/ddVital/coParrot/pulls)
-
-## 📄 License
-
-This project is licensed under a Custom Non-Commercial License - see the [LICENSE](LICENSE) file for details.
-
-**TL;DR:**
-- ✅ Free for personal use
-- ✅ Can modify and redistribute (non-commercial)
-- ❌ Cannot sell or use commercially without permission
-
-## 🙏 Acknowledgments
-
-- Built with [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), and [Google Gemini](https://deepmind.google/technologies/gemini/)
-- Inspired by modern developer workflows
-- Thanks to all [contributors](https://github.com/ddVital/coParrot/graphs/contributors)
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/ddVital/coParrot/issues)
-- **Email**: ddvital0@gmail.com
-- **Discussions**: [GitHub Discussions](https://github.com/ddVital/coParrot/discussions)
-
----
+Non-commercial license. Free for personal use, modification, and non-commercial redistribution. See [LICENSE](LICENSE) for details.
 
 <div align="center">
-  Made with ❤️ by <a href="https://github.com/ddVital">ddVital</a>
-  <br>
-  <sub>If coParrot helps you, consider giving it a ⭐️</sub>
+  <sub>Built by <a href="https://github.com/ddVital">ddVital</a></sub>
 </div>
