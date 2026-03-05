@@ -1,6 +1,6 @@
 {
   "name": "coparrot",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "Your multilingual Git assistant - AI-powered CLI tool for Git operations",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -65,7 +65,6 @@
     "chalk": "^5.3.0",
     "cli-highlight": "^2.1.11",
     "commander": "^14.0.2",
-    "coparrot": "^1.0.1",
     "figlet": "^1.9.4",
     "gradient-string": "^3.0.0",
     "inquirer": "^12.2.0",
