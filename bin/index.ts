@@ -164,7 +164,8 @@ async function main(): Promise<void> {
   if (!config.provider) {
     const isSetupFinished = await setupConfig();
 
-    if (isSetupFinished) cli.start();
+    if (!isSetupFinished) return;
+    cli.config = loadConfig(); // reload fresh config with provider
   }
 
   await cli.start();
