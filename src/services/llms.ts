@@ -21,6 +21,7 @@ interface LLMOptions {
       custom?: string;
       commitConvention?: {
         type?: string;
+        format?: string | null;
         verboseCommits?: boolean;
       };
       prMessageStyle?: string;
@@ -204,11 +205,13 @@ class LLMOrchestrator {
     let convention: string | undefined;
     let style: string | undefined;
     let verbose: boolean | undefined;
+    let customFormat: string | undefined;
 
     switch (type) {
       case 'commit':
         convention = this.options.instructions?.commitConvention?.type || 'conventional';
         verbose = this.options.instructions?.commitConvention?.verboseCommits || false;
+        customFormat = this.options.instructions?.commitConvention?.format ?? undefined;
         break;
       case 'branch':
         convention = this.options.instructions?.commitConvention?.type || 'gitflow';
@@ -223,6 +226,7 @@ class LLMOrchestrator {
       style,
       baseInstructions,
       customInstructions,
+      customFormat,
       verbose,
       sessionContext: this.options.instructions?.sessionContext ?? null
     });
