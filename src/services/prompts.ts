@@ -18,6 +18,7 @@ export interface SystemPromptOptions {
   style?: string;
   baseInstructions?: string;
   customInstructions?: string | null;
+  customFormat?: string;
   recentBranches?: string[];
   verbose?: boolean;
   sessionContext?: SessionContext | null;
@@ -61,7 +62,8 @@ export function buildCommitPrompts(
   baseInstructions: string = '',
   customInstructions: string = '',
   verbose: boolean = false,
-  sessionContext: SessionContext | null = null
+  sessionContext: SessionContext | null = null,
+  customFormat?: string
 ): PromptPair {
   const conventionGuides: Record<string, string> = {
     conventional: `Format: <type>(<scope>): <description>
@@ -81,7 +83,7 @@ Common: ✨ feature, 🐛 fix, 📝 docs, ♻️ refactor, ⚡ perf, 🔥 remove
     angular: `Format: <type>(<scope>): <subject>
 Types: build, ci, docs, feat, fix, perf, refactor, style, test`,
 
-    custom: `Follow the custom format from config.`
+    custom: customFormat ? `Custom format:\n${customFormat}` : `Follow the custom format from config.`
   };
 
   const guide = conventionGuides[convention] || conventionGuides.conventional;
@@ -304,6 +306,7 @@ export function buildPrompts(
     style,
     baseInstructions = '',
     customInstructions = '',
+    customFormat,
     recentBranches = [],
     verbose = false,
     sessionContext = null
@@ -317,7 +320,8 @@ export function buildPrompts(
         baseInstructions,
         customInstructions || '',
         verbose,
-        sessionContext
+        sessionContext,
+        customFormat
       );
 
     case 'branch':
