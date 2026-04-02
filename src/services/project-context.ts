@@ -14,8 +14,8 @@ export interface ProjectContext {
  * Returns the first match or null.
  */
 export function extractIssueId(branchName: string): string | null {
-  const match = branchName.match(/([A-Z][A-Z0-9]+-\d+)/);
-  return match ? match[1] : null;
+  const match = branchName.match(/([a-zA-Z][a-zA-Z0-9]+-\d+)/i);
+  return match ? match[1].toUpperCase() : null;
 }
 
 /**
