@@ -6,6 +6,7 @@ import { select, input } from '@inquirer/prompts';
 import StreamingOutput from '../lib/streamer.js';
 import chalk from 'chalk';
 import { buildPrompts, PromptPair, type SessionContext } from './prompts.js';
+import type { ProjectContext } from './project-context.js';
 import i18n from './i18n.js';
 import axios from 'axios';
 
@@ -27,6 +28,7 @@ interface LLMOptions {
       prMessageStyle?: string;
       customInstructions?: string;
       sessionContext?: SessionContext | null;
+      projectContext?: ProjectContext | null;
     };
     skipApproval?: boolean;
   }
@@ -228,7 +230,8 @@ class LLMOrchestrator {
       customInstructions,
       customFormat,
       verbose,
-      sessionContext: this.options.instructions?.sessionContext ?? null
+      sessionContext: this.options.instructions?.sessionContext ?? null,
+      projectContext: this.options.instructions?.projectContext ?? null
     });
   }
 

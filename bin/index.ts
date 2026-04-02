@@ -17,7 +17,9 @@ import { VERSION } from '../src/utils/index.js';
 import { handlePrCommand } from '../src/commands/pr.js';
 import { gitStatus } from '../src/commands/status.js';
 import { contextCommand } from '../src/commands/context.js';
+import { statsCommand } from '../src/commands/stats.js';
 import { loadContext } from '../src/services/context.js';
+import { loadProjectContext } from '../src/services/project-context.js';
 import type { GitChange } from '../src/services/git.js';
 
 // Configure commander
@@ -43,6 +45,7 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
   // Lazy provider factory — only constructed for commands that need AI
   const getProvider = () => {
     const sessionCtx = loadContext();
+    const projectCtx = loadProjectContext(repo);
     const provider = new LLMOrchestrator({
       provider: config.provider as 'openai' | 'claude' | 'gemini' | 'ollama' | undefined,
       apiKey: resolveApiKey(config.provider, config.apiKey) ?? undefined,
@@ -52,7 +55,8 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
         commitConvention: config.commitConvention,
         prMessageStyle: config.prMessageStyle,
         customInstructions: config.customInstructions,
-        sessionContext: sessionCtx
+        sessionContext: sessionCtx,
+        projectContext: projectCtx
       },
       skipApproval: args.includes('-y') || args.includes('--yes')
     });
@@ -100,6 +104,9 @@ async function handleCommand(cmd: string, args: string[], cli: CLIClass): Promis
     case 'open-pr':
       await handlePrCommand(args, repo, getProvider());
       break;
+    case 'stats':
+      await statsCommand(repo, args);
+      break;
     default:
       cli.streamer.showError(`Unknown command: ${cmd}`);
       cli.streamer.showInfo('Type "help" to see available commands');
@@ -113,7 +120,7 @@ async function main(): Promise<void> {
   // Check if a command was passed as argument (e.g., coparrot status)
   // Do this BEFORE parsing commander to avoid conflicts
   const rawArgs = process.argv.slice(2);
-  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'hook', 'open-pr', 'context'];
+  const validCommands = ['status', 'add', 'commit', 'squawk', 'checkout', 'setup', 'hook', 'open-pr', 'context', 'stats'];
   const commandArg = rawArgs.find(arg => validCommands.includes(arg));
 
   // Parse commander only for options (not commands)
@@ -142,7 +149,8 @@ async function main(): Promise<void> {
       'setup': 'Reconfigure coParrot settings. Use "setup <step>" for specific updates (language|provider|model|convention|custom)',
       'checkout': 'Switch branches (interactive if no args), create with -b, delete with -d/-D',
       'context': 'Set project context for AI-generated messages. Use "context clear" to remove it',
-      'open-pr': "Open a pull request with AI-generated title and description"
+      'open-pr': "Open a pull request with AI-generated title and description",
+      'stats': 'Show commit stats for a user (--author <name>, --since, --until). Use "stats all" for the full repo'
     },
     config: config
   });

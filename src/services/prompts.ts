@@ -3,6 +3,8 @@
  * Each action returns separate system and user prompts for proper LLM API usage.
  */
 
+import type { ProjectContext } from './project-context.js';
+
 export interface PromptPair {
   system: string;
   user: string;
@@ -22,6 +24,7 @@ export interface SystemPromptOptions {
   recentBranches?: string[];
   verbose?: boolean;
   sessionContext?: SessionContext | null;
+  projectContext?: ProjectContext | null;
 }
 
 export interface CommitContext {
@@ -53,6 +56,19 @@ function formatTaskContext(ctx: SessionContext | null | undefined): string {
   return `\nTask context:\n- Title: ${ctx.title}\n- Description: ${ctx.description}\n`;
 }
 
+function formatBranchContext(ctx: ProjectContext | null | undefined): string {
+  if (!ctx) return '';
+  const parts: string[] = [];
+  if (ctx.branchName) parts.push(`Branch: ${ctx.branchName}`);
+  if (ctx.issueId) parts.push(`Issue ID: ${ctx.issueId}`);
+  return parts.length ? '\n' + parts.join('\n') + '\n' : '';
+}
+
+function formatProjectInstructions(ctx: ProjectContext | null | undefined): string {
+  if (!ctx?.instructions) return '';
+  return `\n\nProject-specific instructions (.coparrot.md):\n${ctx.instructions}`;
+}
+
 /**
  * Builds commit message prompts (system + user)
  */
@@ -63,7 +79,8 @@ export function buildCommitPrompts(
   customInstructions: string = '',
   verbose: boolean = false,
   sessionContext: SessionContext | null = null,
-  customFormat?: string
+  customFormat?: string,
+  projectContext?: ProjectContext | null
 ): PromptPair {
   const conventionGuides: Record<string, string> = {
     conventional: `Format: <type>(<scope>): <description>
@@ -105,7 +122,7 @@ Rules:
 - Be specific: include concrete details (function names, package names, behavior) over generic statements
 - Classify by content: new capability=feat, broken behavior fixed=fix, restructure=refactor
 - Imperative present tense, max 72 chars subject line
-- Scope should reflect the domain (auth, api, i18n, ui), not generic (utils, core, data)${verboseHint}${baseInstructions ? `\n${baseInstructions}` : ''}${additionalInstructions}`;
+- Scope should reflect the domain (auth, api, i18n, ui), not generic (utils, core, data)${verboseHint}${baseInstructions ? `\n${baseInstructions}` : ''}${additionalInstructions}${formatProjectInstructions(projectContext)}`;
 
   const filesInfo = context.stagedFiles?.length
     ? `\nStaged files:\n${context.stagedFiles.map(f => `- ${f}`).join('\n')}\n`
@@ -113,8 +130,10 @@ Rules:
 
   const taskContext = formatTaskContext(sessionContext);
 
+  const branchContext = formatBranchContext(projectContext);
+
   const user = `Generate a commit message for this diff:
-${taskContext}${filesInfo}
+${taskContext}${branchContext}${filesInfo}
 ${context.diff}`;
 
   return { system, user };
@@ -128,7 +147,8 @@ export function buildBranchPrompts(
   convention: string = 'gitflow',
   baseInstructions: string = '',
   customInstructions: string = '',
-  sessionContext: SessionContext | null = null
+  sessionContext: SessionContext | null = null,
+  projectContext?: ProjectContext | null
 ): PromptPair {
   const conventionGuides: Record<string, string> = {
     gitflow: `Format: <type>/<description>
@@ -164,7 +184,7 @@ ${guide}
 
 Rules:
 - Lowercase, 3-50 chars, use hyphens as default separator
-- Match separator style (- or _) from recent branches if available${branchesSection}${baseInstructions ? `\n${baseInstructions}` : ''}${additionalInstructions}`;
+- Match separator style (- or _) from recent branches if available${branchesSection}${baseInstructions ? `\n${baseInstructions}` : ''}${additionalInstructions}${formatProjectInstructions(projectContext)}`;
 
   const taskContext = formatTaskContext(sessionContext);
 
@@ -186,7 +206,8 @@ export function buildPRPrompts(
   _style: string = 'detailed',
   _baseInstructions: string = '',
   _customInstructions: string = '',
-  sessionContext: SessionContext | null = null
+  sessionContext: SessionContext | null = null,
+  projectContext?: ProjectContext | null
 ): PromptPair {
   const hasTemplate = !!context.template;
 
@@ -224,7 +245,8 @@ RULES:
 - Do NOT guess what files contain beyond what the diff shows.
 - Do NOT invent functionality, test coverage, commands, or behavior.
 - If the diff is minimal or unclear, keep the description short and factual.
-- Do NOT wrap output in code fences. Output raw markdown directly.`;
+- Do NOT wrap output in code fences. Output raw markdown directly.`
+    + formatProjectInstructions(projectContext);
 
   const commitsSection = context.commits?.length
     ? `## Commits (${context.headBranch} → ${context.baseBranch})\n${context.commits.map(c => `- ${c}`).join('\n')}`
@@ -236,12 +258,14 @@ RULES:
 
   const taskContext = formatTaskContext(sessionContext);
 
+  const issueInfo = projectContext?.issueId ? `\n- Issue ID: ${projectContext.issueId}` : '';
+
   const user = hasTemplate
     ? `Fill in the ENTIRE template below using the provided context. Output every section.
 
 Context:
 - Repository: ${context.repository.name}
-- Branches: ${context.headBranch} → ${context.baseBranch}
+- Branches: ${context.headBranch} → ${context.baseBranch}${issueInfo}
 ${taskContext}
 ${commitsSection}
 
@@ -255,7 +279,7 @@ Output the filled-in template above. Include ALL sections from TEMPLATE START to
     : `Generate the PR body for this change.
 ${taskContext}
 ## Repository: ${context.repository.name}
-## Branches: ${context.headBranch} → ${context.baseBranch}
+## Branches: ${context.headBranch} → ${context.baseBranch}${issueInfo}
 
 ${commitsSection}
 
@@ -269,7 +293,8 @@ ${diffSection}`;
  */
 export function buildPRTitlePrompts(
   context: PRContext,
-  sessionContext: SessionContext | null = null
+  sessionContext: SessionContext | null = null,
+  projectContext?: ProjectContext | null
 ): PromptPair {
   const system = `Output ONLY the PR title. No quotes, markdown, prefixes, or explanations.
 
@@ -285,8 +310,10 @@ Rules:
 
   const taskContext = formatTaskContext(sessionContext);
 
+  const issueInfo = projectContext?.issueId ? `\nIssue ID: ${projectContext.issueId}` : '';
+
   const user = `Generate a PR title for this change (${context.headBranch} → ${context.baseBranch}):
-${taskContext}${commitsInfo}
+${taskContext}${issueInfo}${commitsInfo}
 Diff summary:
 ${context.diff}`;
 
@@ -309,7 +336,8 @@ export function buildPrompts(
     customFormat,
     recentBranches = [],
     verbose = false,
-    sessionContext = null
+    sessionContext = null,
+    projectContext = null
   } = options;
 
   switch (type) {
@@ -321,7 +349,8 @@ export function buildPrompts(
         customInstructions || '',
         verbose,
         sessionContext,
-        customFormat
+        customFormat,
+        projectContext
       );
 
     case 'branch':
@@ -335,7 +364,8 @@ export function buildPrompts(
         convention || 'gitflow',
         baseInstructions,
         customInstructions || '',
-        sessionContext
+        sessionContext,
+        projectContext
       );
 
     case 'pr':
@@ -344,11 +374,12 @@ export function buildPrompts(
         style || 'detailed',
         baseInstructions,
         customInstructions || '',
-        sessionContext
+        sessionContext,
+        projectContext
       );
 
     case 'pr-title':
-      return buildPRTitlePrompts(context as PRContext, sessionContext);
+      return buildPRTitlePrompts(context as PRContext, sessionContext, projectContext);
 
     default:
       return {

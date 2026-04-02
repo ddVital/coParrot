@@ -5,8 +5,8 @@
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "bin": {
-    "coparrot": "./dist/bin/index.js",
-    "cpt": "./dist/bin/index.js"
+    "coparrot": "dist/bin/index.js",
+    "cpt": "dist/bin/index.js"
   },
   "files": [
     "dist",

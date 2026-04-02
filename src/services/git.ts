@@ -293,6 +293,17 @@ class GitRepository {
   }
 
   /**
+   * Get the repository root directory
+   */
+  getRepoRoot(): string {
+    try {
+      return this.exec('git rev-parse --show-toplevel').trim();
+    } catch {
+      return this.repoPath;
+    }
+  }
+
+  /**
    * Get current branch name
    */
   getCurrentBranch(): string {
